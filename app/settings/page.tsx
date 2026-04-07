@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,13 +9,26 @@ import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import Link from "next/link";
 import { Sidebar } from "@/components/layout/Sidebar";
+import { NgoSidebar } from "@/components/layout/NgoSidebar";
+import { SidebarProvider, useSidebar } from "@/components/layout/SidebarContext";
 import { Header } from "@/components/layout/Header";
+import { getCurrentUser } from "@/lib/storage";
+import { User } from "@/types";
 
-export default function SettingsPage() {
+function SettingsContent() {
+  const [user, setUser] = useState<User | null>(null);
+  const { collapsed } = useSidebar();
+
+  useEffect(() => {
+    setUser(getCurrentUser());
+  }, []);
+
+  const isNgo = user?.role === "ngo_user";
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <Sidebar />
-      <div className="lg:pl-60">
+      {isNgo ? <NgoSidebar /> : <Sidebar />}
+      <div className={`transition-all duration-200 ${collapsed ? 'lg:pl-16' : 'lg:pl-60'}`}>
         <Header title="Settings" />
         <main className="p-6 lg:p-8 max-w-3xl mx-auto space-y-6">
           <Card>
@@ -26,19 +40,19 @@ export default function SettingsPage() {
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <Label htmlFor="name">Full Name</Label>
-                  <Input id="name" defaultValue="Rajesh Sharma" className="mt-1" />
+                  <Input id="name" defaultValue={user?.name || ""} className="mt-1" />
                 </div>
                 <div>
                   <Label htmlFor="settingsEmail">Email</Label>
-                  <Input id="settingsEmail" defaultValue="rajesh@daanveda.org" className="mt-1" />
+                  <Input id="settingsEmail" defaultValue={user?.email || ""} className="mt-1" />
                 </div>
                 <div>
                   <Label htmlFor="org">Organization</Label>
-                  <Input id="org" defaultValue="DaanVeda Foundation" className="mt-1" />
+                  <Input id="org" defaultValue={user?.organization || ""} className="mt-1" />
                 </div>
                 <div>
                   <Label htmlFor="role">Role</Label>
-                  <Input id="role" defaultValue="Grant Manager" disabled className="mt-1 bg-gray-50 dark:bg-gray-700" />
+                  <Input id="role" defaultValue={isNgo ? "NGO User" : "Grant Manager"} disabled className="mt-1 bg-gray-50 dark:bg-gray-700" />
                 </div>
               </div>
               <Button>Save Changes</Button>
@@ -95,5 +109,13 @@ export default function SettingsPage() {
         </main>
       </div>
     </div>
+  );
+}
+
+export default function SettingsPage() {
+  return (
+    <SidebarProvider>
+      <SettingsContent />
+    </SidebarProvider>
   );
 }

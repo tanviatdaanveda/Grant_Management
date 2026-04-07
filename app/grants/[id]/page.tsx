@@ -11,7 +11,6 @@ import { Grant } from "@/types";
 import { getGrant, initializeStorage } from "@/lib/storage";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import {
-  Zap,
   ArrowLeft,
   Calendar,
   MapPin,
@@ -21,6 +20,7 @@ import {
   Mail,
   ArrowRight,
 } from "lucide-react";
+import Image from "next/image";
 
 export default function GrantDetailPage() {
   const params = useParams();
@@ -54,9 +54,7 @@ export default function GrantDetailPage() {
       <header className="sticky top-0 z-50 border-b border-gray-200 bg-white/80 backdrop-blur-md dark:border-gray-800 dark:bg-gray-900/80">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6 lg:px-8">
           <Link href="/" className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600">
-              <Zap className="h-4 w-4 text-white" />
-            </div>
+            <Image src="/logo-icon.png" alt="DaanVeda" width={32} height={32} className="h-8 w-8" />
             <span className="text-lg font-bold text-gray-900 dark:text-white">DaanVeda</span>
           </Link>
           <Link href="/grants">

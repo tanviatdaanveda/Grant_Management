@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   description:
     "Connect corporates with verified NGOs through intelligent grant management & automated evaluation",
   icons: {
-    icon: "/logo.png",
+    icon: "/logo-icon.png",
   },
 };
 

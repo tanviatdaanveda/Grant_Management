@@ -7,8 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Zap } from "lucide-react";
 import { initializeStorage, setCurrentUser } from "@/lib/storage";
+import Image from "next/image";
 import { mockUsers } from "@/lib/mockData";
 
 export default function LoginPage() {
@@ -46,9 +46,7 @@ export default function LoginPage() {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <Link href="/" className="inline-flex items-center justify-center gap-2 mb-4">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600">
-              <Zap className="h-5 w-5 text-white" />
-            </div>
+            <Image src="/logo-icon.png" alt="DaanVeda" width={40} height={40} className="h-10 w-10" />
           </Link>
           <CardTitle className="text-2xl">Welcome back</CardTitle>
           <CardDescription>Sign in to DaanVeda Grant Management</CardDescription>
