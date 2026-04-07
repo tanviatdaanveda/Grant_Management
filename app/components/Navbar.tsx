@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -17,22 +18,14 @@ export default function Navbar() {
       <nav className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4 lg:px-8">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2">
-          <svg
-            width="28"
-            height="28"
-            viewBox="0 0 28 28"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <circle cx="14" cy="14" r="13" stroke="#375DFB" strokeWidth="2" />
-            <path
-              d="M9 14C9 11.2386 11.2386 9 14 9C16.7614 9 19 11.2386 19 14C19 16.7614 16.7614 19 14 19"
-              stroke="#375DFB"
-              strokeWidth="2"
-              strokeLinecap="round"
-            />
-          </svg>
-          <span className="text-xl font-bold text-gray-900">DaanVeda</span>
+          <Image
+            src="/logo.png"
+            alt="DaanVeda"
+            width={160}
+            height={40}
+            className="h-9 w-auto"
+            priority
+          />
         </Link>
 
         {/* Desktop Nav Links */}

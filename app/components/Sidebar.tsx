@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -46,15 +47,14 @@ export default function Sidebar() {
     <aside className="flex h-screen w-[260px] flex-col border-r border-gray-100 bg-white">
       {/* Logo */}
       <div className="flex items-center gap-2 px-5 pt-5 pb-2">
-        <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-          <circle cx="14" cy="14" r="13" stroke="#375DFB" strokeWidth="2" />
-          <path
-            d="M9 14C9 11.2386 11.2386 9 14 9C16.7614 9 19 11.2386 19 14C19 16.7614 16.7614 19 14 19"
-            stroke="#375DFB"
-            strokeWidth="2"
-            strokeLinecap="round"
-          />
-        </svg>
+        <Image
+          src="/logo.png"
+          alt="DaanVeda"
+          width={140}
+          height={35}
+          className="h-8 w-auto"
+          priority
+        />
       </div>
 
       {/* Quick Search */}

@@ -11,6 +11,9 @@ export const metadata: Metadata = {
   title: "DaanVeda — AI-Powered Grant Screening",
   description:
     "Connect corporates with verified NGOs through intelligent grant management & automated evaluation",
+  icons: {
+    icon: "/logo.png",
+  },
 };
 
 export default function RootLayout({
