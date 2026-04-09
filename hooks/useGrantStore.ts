@@ -2,33 +2,33 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Grant } from "@/types";
-import * as storage from "@/lib/storage";
+import * as actions from "@/lib/actions";
 
 export function useGrantStore() {
   const [grants, setGrants] = useState<Grant[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    setGrants(storage.getGrants());
-    setLoading(false);
+  const refresh = useCallback(async () => {
+    const data = await actions.getGrants();
+    setGrants(data);
   }, []);
 
-  const refresh = useCallback(() => {
-    setGrants(storage.getGrants());
-  }, []);
+  useEffect(() => {
+    refresh().then(() => setLoading(false));
+  }, [refresh]);
 
   const saveGrant = useCallback(
-    (grant: Grant) => {
-      storage.saveGrant(grant);
-      refresh();
+    async (grant: Grant) => {
+      await actions.saveGrant(grant);
+      await refresh();
     },
     [refresh]
   );
 
   const deleteGrant = useCallback(
-    (id: string) => {
-      storage.deleteGrant(id);
-      refresh();
+    async (id: string) => {
+      await actions.deleteGrant(id);
+      await refresh();
     },
     [refresh]
   );

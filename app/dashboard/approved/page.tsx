@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Application } from "@/types";
-import { getApplications } from "@/lib/storage";
+import { getApplications } from "@/lib/actions";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { CheckCircle } from "lucide-react";
 
@@ -15,8 +15,10 @@ export default function ApprovedPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    setApplications(getApplications().filter((a) => a.status === "Approved"));
-    setLoading(false);
+    getApplications().then((all) => {
+      setApplications(all.filter((a) => a.status === "Approved"));
+      setLoading(false);
+    });
   }, []);
 
   if (loading) {

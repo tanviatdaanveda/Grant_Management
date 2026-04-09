@@ -14,7 +14,7 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Grant, EvaluationQuestion, FocusArea, GrantType, FundType, Geography } from "@/types";
-import { saveGrant, addActivity, getWizardState, saveWizardState, clearWizardState } from "@/lib/storage";
+import { saveGrant, addActivity, getWizardState, saveWizardState, clearWizardState } from "@/lib/actions";
 import { generateId, formatCurrency, formatDate } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { ChevronLeft, ChevronRight, Plus, Trash2, CheckCircle2, Save } from "lucide-react";
@@ -62,16 +62,17 @@ export default function CreateGrantPage() {
   const [showSuccess, setShowSuccess] = useState(false);
 
   useEffect(() => {
-    const saved = getWizardState();
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        setData(parsed.data || emptyGrant);
-        setCurrentStep(parsed.currentStep || 0);
-      } catch {
-        // ignore parse errors
+    getWizardState().then((saved) => {
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          setData(parsed.data || emptyGrant);
+          setCurrentStep(parsed.currentStep || 0);
+        } catch {
+          // ignore parse errors
+        }
       }
-    }
+    });
   }, []);
 
   const persistState = (step: number, newData: Partial<Grant>) => {
@@ -128,7 +129,7 @@ export default function CreateGrantPage() {
     updateField("focusAreas", updated);
   };
 
-  const publishGrant = () => {
+  const publishGrant = async () => {
     const grant: Grant = {
       id: generateId(),
       title: data.title || "Untitled Grant",
@@ -160,19 +161,19 @@ export default function CreateGrantPage() {
       funderName: data.fundName || "DaanVeda Foundation",
     };
 
-    saveGrant(grant);
-    addActivity({
+    await saveGrant(grant);
+    await addActivity({
       id: `act-${Date.now()}`,
       type: "grant_published",
       message: `${grant.title} published and accepting applications`,
       timestamp: new Date().toISOString(),
     });
-    clearWizardState();
+    await clearWizardState();
     setShowSuccess(true);
     setTimeout(() => router.push("/dashboard/grants"), 2000);
   };
 
-  const saveDraft = () => {
+  const saveDraft = async () => {
     const grant: Grant = {
       id: generateId(),
       title: data.title || "Untitled Grant",
@@ -204,8 +205,8 @@ export default function CreateGrantPage() {
       funderName: data.fundName || "DaanVeda Foundation",
     };
 
-    saveGrant(grant);
-    clearWizardState();
+    await saveGrant(grant);
+    await clearWizardState();
     router.push("/dashboard/grants");
   };
 

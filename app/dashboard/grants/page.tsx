@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Grant } from "@/types";
-import { getGrants } from "@/lib/storage";
+import { getGrants } from "@/lib/actions";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { Plus, Search, FileText, Calendar, MapPin } from "lucide-react";
 
@@ -19,14 +19,27 @@ export default function GrantsPage() {
   const [search, setSearch] = useState("");
 
   useEffect(() => {
-    setGrants(getGrants());
-    setLoading(false);
+    getGrants().then((data) => {
+      setGrants(data);
+      setLoading(false);
+    });
+  }, []);
+
+  // Listen for header search events
+  useEffect(() => {
+    const handler = (e: Event) => {
+      setSearch((e as CustomEvent).detail || "");
+    };
+    window.addEventListener("dv:search", handler);
+    return () => window.removeEventListener("dv:search", handler);
   }, []);
 
   const filtered = grants.filter(
     (g) =>
       g.title.toLowerCase().includes(search.toLowerCase()) ||
-      g.funderName.toLowerCase().includes(search.toLowerCase())
+      g.funderName.toLowerCase().includes(search.toLowerCase()) ||
+      g.status.toLowerCase().includes(search.toLowerCase()) ||
+      g.grantType.toLowerCase().includes(search.toLowerCase())
   );
 
   if (loading) {

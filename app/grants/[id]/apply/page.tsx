@@ -19,7 +19,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Grant, Application, BudgetItem } from "@/types";
-import { getGrant, saveApplication, addActivity, initializeStorage } from "@/lib/storage";
+import { getGrant, saveApplication, addActivity } from "@/lib/actions";
 import { formatCurrency, formatDate, generateId } from "@/lib/utils";
 import {
   ArrowLeft,
@@ -57,9 +57,7 @@ export default function ApplyPage() {
   const [appId, setAppId] = useState("");
 
   useEffect(() => {
-    initializeStorage();
-    const g = getGrant(params.id as string);
-    if (g) setGrant(g);
+    getGrant(params.id as string).then((g) => { if (g) setGrant(g); });
   }, [params.id]);
 
   const totalBudget = budgetItems.reduce((sum, item) => sum + (item.amount || 0), 0);
@@ -79,7 +77,7 @@ export default function ApplyPage() {
     setBudgetItems(budgetItems.filter((_, i) => i !== index));
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!grant) return;
 
     const newAppId = `APP-${Date.now().toString(36).toUpperCase()}`;
@@ -115,8 +113,8 @@ export default function ApplyPage() {
       notes: [],
     };
 
-    saveApplication(application);
-    addActivity({
+    await saveApplication(application);
+    await addActivity({
       id: `act-${Date.now()}`,
       type: "application_received",
       message: `New application from ${mockProfile.ngoName} for ${grant.title}`,

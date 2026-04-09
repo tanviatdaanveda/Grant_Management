@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Grant } from "@/types";
-import { getGrant, initializeStorage } from "@/lib/storage";
+import { getGrant } from "@/lib/actions";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import {
   ArrowLeft,
@@ -27,10 +27,8 @@ export default function GrantDetailPage() {
   const [grant, setGrant] = useState<Grant | null>(null);
 
   useEffect(() => {
-    initializeStorage();
     const id = params.id as string;
-    const g = getGrant(id);
-    if (g) setGrant(g);
+    getGrant(id).then((g) => { if (g) setGrant(g); });
   }, [params.id]);
 
   if (!grant) {

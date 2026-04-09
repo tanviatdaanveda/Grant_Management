@@ -9,11 +9,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Building2, MapPin, Phone, Mail, Globe, Save, CheckCircle } from "lucide-react";
-import { getCurrentUser } from "@/lib/storage";
+import { useAppStore } from "@/lib/store";
 
 export default function OrganizationPage() {
   const [saved, setSaved] = useState(false);
-  const user = getCurrentUser();
+  const user = useAppStore((s) => s.currentUser);
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();

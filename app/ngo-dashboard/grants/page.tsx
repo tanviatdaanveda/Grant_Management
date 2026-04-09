@@ -16,7 +16,7 @@ import {
   ArrowRight,
   Filter,
 } from "lucide-react";
-import { getGrants } from "@/lib/storage";
+import { getGrants } from "@/lib/actions";
 import { Grant, FocusArea } from "@/types";
 import { formatCurrency, formatDate } from "@/lib/utils";
 
@@ -38,9 +38,19 @@ export default function NgoBrowseGrantsPage() {
   const [selectedFocus, setSelectedFocus] = useState<FocusArea | "All">("All");
 
   useEffect(() => {
-    const allGrants = getGrants();
-    setGrants(allGrants.filter((g) => g.status === "Active"));
-    setLoading(false);
+    getGrants().then((allGrants) => {
+      setGrants(allGrants.filter((g) => g.status === "Active"));
+      setLoading(false);
+    });
+  }, []);
+
+  // Listen for header search events
+  useEffect(() => {
+    const handler = (e: Event) => {
+      setSearch((e as CustomEvent).detail || "");
+    };
+    window.addEventListener("dv:search", handler);
+    return () => window.removeEventListener("dv:search", handler);
   }, []);
 
   const filtered = grants.filter((g) => {

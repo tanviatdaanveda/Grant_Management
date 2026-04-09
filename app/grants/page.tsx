@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Grant, FocusArea } from "@/types";
-import { getGrants, initializeStorage } from "@/lib/storage";
+import { getGrants } from "@/lib/actions";
 import { Search, ArrowLeft } from "lucide-react";
 import Image from "next/image";
 
@@ -23,8 +23,7 @@ export default function BrowseGrantsPage() {
   const [typeFilter, setTypeFilter] = useState("");
 
   useEffect(() => {
-    initializeStorage();
-    setGrants(getGrants().filter((g) => g.status === "Active"));
+    getGrants().then((all) => setGrants(all.filter((g) => g.status === "Active")));
   }, []);
 
   const filtered = grants.filter((g) => {

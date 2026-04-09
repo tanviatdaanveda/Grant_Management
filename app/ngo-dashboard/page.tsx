@@ -17,7 +17,8 @@ import {
   ArrowRight,
   TrendingUp,
 } from "lucide-react";
-import { getApplications, getGrants, getCurrentUser } from "@/lib/storage";
+import { getApplications, getGrants } from "@/lib/actions";
+import { useAppStore } from "@/lib/store";
 import { Application, Grant } from "@/types";
 import { formatCurrency, formatDate } from "@/lib/utils";
 
@@ -33,19 +34,16 @@ export default function NgoDashboardPage() {
   const [applications, setApplications] = useState<Application[]>([]);
   const [grants, setGrants] = useState<Grant[]>([]);
   const [loading, setLoading] = useState(true);
+  const currentUser = useAppStore((s) => s.currentUser);
 
   useEffect(() => {
-    const user = getCurrentUser();
-    const allApps = getApplications();
-    const allGrants = getGrants();
-
-    // Show all applications as if they belong to this NGO user
-    // In a real app, we'd filter by user/org ID
-    const ngoApps = user?.role === "ngo_user" ? allApps : [];
-    setApplications(ngoApps);
-    setGrants(allGrants.filter((g) => g.status === "Active"));
-    setLoading(false);
-  }, []);
+    Promise.all([getApplications(), getGrants()]).then(([allApps, allGrants]) => {
+      const ngoApps = currentUser?.role === "ngo_user" ? allApps : [];
+      setApplications(ngoApps);
+      setGrants(allGrants.filter((g) => g.status === "Active"));
+      setLoading(false);
+    });
+  }, [currentUser]);
 
   const stats = [
     {
@@ -99,7 +97,7 @@ export default function NgoDashboardPage() {
       <main className="p-6 space-y-6">
         {/* Welcome */}
         <div className="rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 p-6 text-white">
-          <h2 className="text-xl font-bold">Welcome back, {getCurrentUser()?.name?.split(" ")[0] || "there"}!</h2>
+          <h2 className="text-xl font-bold">Welcome back, {currentUser?.name?.split(" ")[0] || "there"}!</h2>
           <p className="mt-1 text-orange-100">
             Track your applications and discover new funding opportunities.
           </p>

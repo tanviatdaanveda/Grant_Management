@@ -18,7 +18,8 @@ import {
   ExternalLink,
   ChevronDown,
 } from "lucide-react";
-import { getApplications, getCurrentUser } from "@/lib/storage";
+import { getApplications } from "@/lib/actions";
+import { useAppStore } from "@/lib/store";
 import { Application, ApplicationStatus } from "@/types";
 import { formatCurrency, formatDate } from "@/lib/utils";
 
@@ -52,15 +53,15 @@ export default function NgoApplicationsPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState<ApplicationStatus | "All">("All");
+  const currentUser = useAppStore((s) => s.currentUser);
 
   useEffect(() => {
-    const user = getCurrentUser();
-    const allApps = getApplications();
-    // Show all applications for this NGO user
-    const ngoApps = user?.role === "ngo_user" ? allApps : [];
-    setApplications(ngoApps);
-    setLoading(false);
-  }, []);
+    getApplications().then((allApps) => {
+      const ngoApps = currentUser?.role === "ngo_user" ? allApps : [];
+      setApplications(ngoApps);
+      setLoading(false);
+    });
+  }, [currentUser]);
 
   const filtered = applications.filter((app) => {
     const matchesTab = activeTab === "All" || app.status === activeTab;

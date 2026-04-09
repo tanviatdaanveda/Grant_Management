@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Grant, FocusArea } from "@/types";
-import { getGrants, initializeStorage } from "@/lib/storage";
+import { getGrants } from "@/lib/actions";
 import { Search } from "lucide-react";
 import Image from "next/image";
 
@@ -25,8 +25,7 @@ export default function Home() {
   const [geoFilter, setGeoFilter] = useState("");
 //hello
   useEffect(() => {
-    initializeStorage();
-    setGrants(getGrants());
+    getGrants().then(setGrants);
   }, []);
 
   const filtered = grants.filter((g) => {
@@ -63,7 +62,7 @@ export default function Home() {
             <Link href="/login">
               <Button variant="ghost" size="sm">Login</Button>
             </Link>
-            <Link href="/dashboard">
+            <Link href="/login">
               <Button size="sm">Get Started</Button>
             </Link>
           </div>

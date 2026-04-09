@@ -2,41 +2,41 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Application, ApplicationStatus } from "@/types";
-import * as storage from "@/lib/storage";
+import * as actions from "@/lib/actions";
 
 export function useApplicationStore() {
   const [applications, setApplications] = useState<Application[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    setApplications(storage.getApplications());
-    setLoading(false);
+  const refresh = useCallback(async () => {
+    const data = await actions.getApplications();
+    setApplications(data);
   }, []);
 
-  const refresh = useCallback(() => {
-    setApplications(storage.getApplications());
-  }, []);
+  useEffect(() => {
+    refresh().then(() => setLoading(false));
+  }, [refresh]);
 
   const saveApplication = useCallback(
-    (app: Application) => {
-      storage.saveApplication(app);
-      refresh();
+    async (app: Application) => {
+      await actions.saveApplication(app);
+      await refresh();
     },
     [refresh]
   );
 
   const updateStatus = useCallback(
-    (id: string, status: ApplicationStatus) => {
-      storage.updateApplicationStatus(id, status);
-      refresh();
+    async (id: string, status: ApplicationStatus) => {
+      await actions.updateApplicationStatus(id, status);
+      await refresh();
     },
     [refresh]
   );
 
   const bulkUpdateStatus = useCallback(
-    (ids: string[], status: ApplicationStatus) => {
-      storage.bulkUpdateApplicationStatus(ids, status);
-      refresh();
+    async (ids: string[], status: ApplicationStatus) => {
+      await actions.bulkUpdateApplicationStatus(ids, status);
+      await refresh();
     },
     [refresh]
   );

@@ -8,7 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge } from "@/components/dashboard/StatusBadge";
 import { ApplicationDrawer } from "@/components/dashboard/ApplicationDrawer";
 import { Application } from "@/types";
-import { getApplications, updateApplicationStatus } from "@/lib/storage";
+import { getApplications, updateApplicationStatus } from "@/lib/actions";
 import { formatCurrency, formatDate } from "@/lib/utils";
 
 export default function ShortlistedPage() {
@@ -17,16 +17,15 @@ export default function ShortlistedPage() {
   const [drawerApp, setDrawerApp] = useState<Application | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
-  const refresh = () => setApplications(getApplications().filter((a) => a.status === "Shortlisted"));
+  const refresh = () => getApplications().then((all) => setApplications(all.filter((a) => a.status === "Shortlisted")));
 
   useEffect(() => {
-    refresh();
-    setLoading(false);
+    refresh().then(() => setLoading(false));
   }, []);
 
-  const handleStatusChange = (id: string, status: Application["status"]) => {
-    updateApplicationStatus(id, status);
-    refresh();
+  const handleStatusChange = async (id: string, status: Application["status"]) => {
+    await updateApplicationStatus(id, status);
+    await refresh();
     if (drawerApp?.id === id) setDrawerApp({ ...drawerApp, status });
   };
 

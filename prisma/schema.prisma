@@ -1,0 +1,187 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String         @id
+  name         String
+  email        String         @unique
+  role         String
+  organization String
+  phone        String         @default("")
+  city         String         @default("")
+  state        String         @default("")
+  avatar       String         @default("")
+  notifications Notification[]
+  knowledgeDocuments KnowledgeDocument[]
+  ngoProfile   NGOProfile?
+  applicationMemories ApplicationMemory[]
+}
+
+model Grant {
+  id                  String        @id
+  title               String
+  description         String
+  grantType           String
+  fundName            String
+  fundType            String
+  totalAmount         Float
+  minAmount           Float
+  maxAmount           Float
+  startDate           String
+  endDate             String
+  contactPerson       String
+  contactEmail        String
+  phone               String
+  geography           String
+  country             String
+  state               String        @default("")
+  city                String        @default("")
+  focusAreas          String        // JSON array
+  eligibilityCriteria String
+  expectedOutcomes    String
+  identifierType      String
+  evaluationQuestions String        // JSON array
+  aiEvaluation        Boolean
+  status              String
+  applicationCount    Int           @default(0)
+  createdAt           String
+  funderName          String
+  funderLogo          String        @default("")
+  applications        Application[]
+}
+
+model Application {
+  id                     String @id
+  grantId                String
+  grant                  Grant  @relation(fields: [grantId], references: [id])
+  grantTitle             String
+  ngoName                String
+  ngoRegistration        String
+  ngoLocation            String
+  ngoContact             String
+  ngoEmail               String
+  projectTitle           String
+  projectDescription     String
+  targetBeneficiaries    Int
+  implementationTimeline String
+  budgetItems            String // JSON
+  totalBudget            Float
+  evaluationResponses    String // JSON
+  documents              String // JSON
+  status                 String
+  score                  Float
+  submittedAt            String
+  notes                  String // JSON array
+}
+
+model Activity {
+  id        String @id
+  type      String
+  message   String
+  timestamp String
+}
+
+model Notification {
+  id        String  @id
+  title     String
+  message   String
+  read      Boolean @default(false)
+  createdAt String
+  userId    String
+  user      User    @relation(fields: [userId], references: [id])
+}
+
+model WizardState {
+  id    String @id @default("default")
+  state String
+}
+
+model KnowledgeDocument {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id])
+  fileName      String
+  fileType      String   // registration | fcra | annual_report | proposal | budget | impact | leadership | profile
+  fileUrl       String
+  extractedData String   // JSON – structured data extracted by AI
+  uploadedAt    DateTime @default(now())
+}
+
+model NGOProfile {
+  id               String   @id @default(cuid())
+  userId           String   @unique
+  user             User     @relation(fields: [userId], references: [id])
+  orgName          String
+  registrationNo   String?
+  fcraNo           String?
+  focusAreas       String   @default("[]") // JSON array
+  geography        String   @default("[]") // JSON array
+  mission          String?
+  vision           String?
+  foundedYear      Int?
+  teamSize         Int?
+  annualBudget     Float?
+  impactScore      Float?
+  documentScore    Float?
+  profileComplete  Float?   // 0-100 completeness
+  updatedAt        DateTime @updatedAt
+}
+
+model GrantFitScore {
+  id           String   @id @default(cuid())
+  ngoId        String
+  grantId      String
+  totalScore   Float    // 0-100
+  geoScore     Float
+  focusScore   Float
+  eligScore    Float
+  impactScore  Float
+  docScore     Float
+  reasoning    String
+  suggestions  String   @default("[]") // JSON array
+  createdAt    DateTime @default(now())
+}
+
+model ApplicationMemory {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  fieldKey   String   // e.g. "orgName", "registrationNo", "mission"
+  fieldValue String
+  updatedAt  DateTime @updatedAt
+
+  @@unique([userId, fieldKey])
+}
+
+model EmailLog {
+  id            String   @id @default(cuid())
+  applicationId String
+  type          String   // approved | rejected | shortlisted | more_info
+  subject       String
+  body          String
+  sentAt        DateTime @default(now())
+  status        String   // sent | pending | failed
+}
+
+model NGOVerseProfile {
+  id             String   @id @default(cuid())
+  ngoId          String   @unique
+  totalApps      Int      @default(0)
+  approvedApps   Int      @default(0)
+  approvalRate   Float    @default(0)
+  grantsReceived Float    @default(0)
+  impactScore    Float    @default(0)
+  fitScore       Float    @default(0)
+  isShortlisted  Boolean  @default(false)
+  tags           String   @default("[]") // JSON array
+  updatedAt      DateTime @updatedAt
+}

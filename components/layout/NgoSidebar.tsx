@@ -15,11 +15,10 @@ import {
   PanelLeftOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useState, useEffect } from "react";
-import { getCurrentUser } from "@/lib/storage";
-import { User } from "@/types";
+import { useState } from "react";
 import Image from "next/image";
 import { useSidebar } from "./SidebarContext";
+import { useAppStore } from "@/lib/store";
 
 const navItems = [
   { href: "/ngo-dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -33,11 +32,7 @@ export function NgoSidebar() {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const { collapsed, toggle } = useSidebar();
-  const [user, setUser] = useState<User | null>(null);
-
-  useEffect(() => {
-    setUser(getCurrentUser());
-  }, []);
+  const user = useAppStore((s) => s.currentUser);
 
   const isActive = (href: string) => {
     if (href === "/ngo-dashboard") return pathname === "/ngo-dashboard";
@@ -104,7 +99,7 @@ export function NgoSidebar() {
                   {user?.name || "Priya Menon"}
                 </p>
                 <p className="text-xs text-gray-500 truncate dark:text-gray-400">
-                  {user?.organization || "Hope Initiative India"}
+                  {user?.email || "priya@hopeinitiative.org"}
                 </p>
               </div>
               <Link href="/login" className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">

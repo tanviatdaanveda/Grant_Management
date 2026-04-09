@@ -20,6 +20,7 @@ import { Progress } from "@/components/ui/progress";
 import { useState } from "react";
 import Image from "next/image";
 import { useSidebar } from "./SidebarContext";
+import { useAppStore } from "@/lib/store";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -34,6 +35,15 @@ export function Sidebar() {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const { collapsed, toggle } = useSidebar();
+  const currentUser = useAppStore((s) => s.currentUser);
+
+  const initials = currentUser?.name
+    ?.split(" ")
+    .map((w) => w[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("")
+    .toUpperCase() || "RS";
 
   const isActive = (href: string) => {
     if (href === "/dashboard") return pathname === "/dashboard";
@@ -97,13 +107,13 @@ export function Sidebar() {
       <div className={cn("border-t border-gray-200 py-4 dark:border-gray-700", full ? "px-4" : "px-2")}>
         <div className={cn("flex items-center", full ? "gap-3" : "justify-center")}>
           <div className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-100 text-sm font-semibold text-indigo-700 dark:bg-indigo-900 dark:text-indigo-400 flex-shrink-0">
-            RS
+            {initials}
           </div>
           {full && (
             <>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-900 truncate dark:text-white">Rajesh Sharma</p>
-                <p className="text-xs text-gray-500 truncate dark:text-gray-400">rajesh@daanveda.org</p>
+                <p className="text-sm font-medium text-gray-900 truncate dark:text-white">{currentUser?.name || "Rajesh Sharma"}</p>
+                <p className="text-xs text-gray-500 truncate dark:text-gray-400">{currentUser?.email || "rajesh@daanveda.org"}</p>
               </div>
               <Link href="/login" className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
                 <LogOut className="h-4 w-4" />

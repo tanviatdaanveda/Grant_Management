@@ -1,15 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { initializeStorage, setCurrentUser } from "@/lib/storage";
 import Image from "next/image";
-import { mockUsers } from "@/lib/mockData";
+import { useAppStore } from "@/lib/store";
+import { getUserByEmail, getUsers } from "@/lib/actions";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -17,18 +17,25 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [selectedRole, setSelectedRole] = useState<"funder" | "ngo" | null>(null);
 
+  const [users, setUsers] = useState<{id:string;name:string;email:string;role:string;organization:string}[]>([]);
+
+  useEffect(() => {
+    getUsers().then(setUsers);
+  }, []);
+
   const handleQuickLogin = (role: "funder" | "ngo") => {
     setSelectedRole(role);
-    const user = role === "funder" ? mockUsers[0] : mockUsers[1];
-    setEmail(user.email);
+    const user = role === "funder" ? users.find(u => u.role === "grant_manager") : users.find(u => u.role === "ngo_user");
+    if (user) setEmail(user.email);
   };
 
-  const handleLogin = (e: React.FormEvent) => {
+  const setCurrentUser = useAppStore((s) => s.setCurrentUser);
+
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    initializeStorage();
-    const user = mockUsers.find((u) => u.email === email);
+    const user = await getUserByEmail(email);
     if (user) {
-      setCurrentUser(user);
+      setCurrentUser(user as import("@/lib/store").AppUser);
       if (user.role === "ngo_user") {
         router.push("/ngo-dashboard");
       } else {
@@ -36,7 +43,8 @@ export default function LoginPage() {
       }
     } else {
       // Default: treat as funder
-      setCurrentUser(mockUsers[0]);
+      const fallback = users.find(u => u.role === "grant_manager");
+      if (fallback) setCurrentUser(fallback as import("@/lib/store").AppUser);
       router.push("/dashboard");
     }
   };
@@ -68,8 +76,8 @@ export default function LoginPage() {
                 }`}
               >
                 <p className="text-sm font-semibold text-gray-900 dark:text-white">Funder</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Rajesh Sharma</p>
-                <p className="text-[10px] text-gray-400 dark:text-gray-500">rajesh@daanveda.org</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{users.find(u => u.role === "grant_manager")?.name || "Rajesh Sharma"}</p>
+                <p className="text-[10px] text-gray-400 dark:text-gray-500">{users.find(u => u.role === "grant_manager")?.email || "rajesh@daanveda.org"}</p>
               </button>
               <button
                 type="button"
@@ -81,8 +89,8 @@ export default function LoginPage() {
                 }`}
               >
                 <p className="text-sm font-semibold text-gray-900 dark:text-white">NGO</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Priya Menon</p>
-                <p className="text-[10px] text-gray-400 dark:text-gray-500">priya@hopeinitiative.org</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{users.find(u => u.role === "ngo_user")?.name || "Priya Menon"}</p>
+                <p className="text-[10px] text-gray-400 dark:text-gray-500">{users.find(u => u.role === "ngo_user")?.email || "priya@hopeinitiative.org"}</p>
               </button>
             </div>
           </div>

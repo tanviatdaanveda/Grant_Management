@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Grant, Application, Activity } from "@/types";
-import { getGrants, getApplications, getActivities } from "@/lib/storage";
+import { getGrants, getApplications, getActivities } from "@/lib/actions";
 import { formatDate } from "@/lib/utils";
 import {
   Users,
@@ -29,10 +29,14 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    setGrants(getGrants());
-    setApplications(getApplications());
-    setActivities(getActivities());
-    setLoading(false);
+    Promise.all([getGrants(), getApplications(), getActivities()]).then(
+      ([g, a, act]) => {
+        setGrants(g);
+        setApplications(a);
+        setActivities(act);
+        setLoading(false);
+      }
+    );
   }, []);
 
   const stats = [

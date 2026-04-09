@@ -10,7 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge } from "@/components/dashboard/StatusBadge";
 import { ApplicationDrawer } from "@/components/dashboard/ApplicationDrawer";
 import { Application, ApplicationStatus } from "@/types";
-import { getApplications, updateApplicationStatus, bulkUpdateApplicationStatus } from "@/lib/storage";
+import { getApplications, updateApplicationStatus, bulkUpdateApplicationStatus } from "@/lib/actions";
 import { formatDate } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { Search, Download, Star, XCircle } from "lucide-react";
@@ -34,12 +34,23 @@ export default function ApplicationsPage() {
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   const refresh = () => {
-    setApplications(getApplications());
+    getApplications().then(setApplications);
   };
 
   useEffect(() => {
-    refresh();
-    setLoading(false);
+    getApplications().then((data) => {
+      setApplications(data);
+      setLoading(false);
+    });
+  }, []);
+
+  // Listen for header search events
+  useEffect(() => {
+    const handler = (e: Event) => {
+      setSearch((e as CustomEvent).detail || "");
+    };
+    window.addEventListener("dv:search", handler);
+    return () => window.removeEventListener("dv:search", handler);
   }, []);
 
   const filtered = useMemo(() => {
@@ -49,7 +60,8 @@ export default function ApplicationsPage() {
         search &&
         !app.ngoName.toLowerCase().includes(search.toLowerCase()) &&
         !app.grantTitle.toLowerCase().includes(search.toLowerCase()) &&
-        !app.projectTitle.toLowerCase().includes(search.toLowerCase())
+        !app.projectTitle.toLowerCase().includes(search.toLowerCase()) &&
+        !app.status.toLowerCase().includes(search.toLowerCase())
       )
         return false;
       return true;
@@ -79,16 +91,16 @@ export default function ApplicationsPage() {
     }
   };
 
-  const handleStatusChange = (id: string, status: ApplicationStatus) => {
-    updateApplicationStatus(id, status);
+  const handleStatusChange = async (id: string, status: ApplicationStatus) => {
+    await updateApplicationStatus(id, status);
     refresh();
     if (drawerApp?.id === id) {
       setDrawerApp({ ...drawerApp, status });
     }
   };
 
-  const handleBulkAction = (status: ApplicationStatus) => {
-    bulkUpdateApplicationStatus(Array.from(selected), status);
+  const handleBulkAction = async (status: ApplicationStatus) => {
+    await bulkUpdateApplicationStatus(Array.from(selected), status);
     setSelected(new Set());
     refresh();
   };

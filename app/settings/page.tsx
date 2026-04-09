@@ -1,29 +1,38 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
-import Link from "next/link";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { NgoSidebar } from "@/components/layout/NgoSidebar";
 import { SidebarProvider, useSidebar } from "@/components/layout/SidebarContext";
 import { Header } from "@/components/layout/Header";
-import { getCurrentUser } from "@/lib/storage";
-import { User } from "@/types";
+import { useAppStore } from "@/lib/store";
+import { Check } from "lucide-react";
 
 function SettingsContent() {
-  const [user, setUser] = useState<User | null>(null);
+  const currentUser = useAppStore((s) => s.currentUser);
+  const updateProfile = useAppStore((s) => s.updateProfile);
   const { collapsed } = useSidebar();
+  const [saved, setSaved] = useState(false);
 
-  useEffect(() => {
-    setUser(getCurrentUser());
-  }, []);
+  const [name, setName] = useState(currentUser?.name || "");
+  const [email, setEmail] = useState(currentUser?.email || "");
+  const [org, setOrg] = useState(currentUser?.organization || "");
+  const [phone, setPhone] = useState(currentUser?.phone || "");
+  const [city, setCity] = useState(currentUser?.city || "");
+  const [state, setState] = useState(currentUser?.state || "");
 
-  const isNgo = user?.role === "ngo_user";
+  const isNgo = currentUser?.role === "ngo_user";
+
+  const handleSave = () => {
+    updateProfile({ name, email, organization: org, phone, city, state });
+    setSaved(true);
+    setTimeout(() => setSaved(false), 3000);
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -40,22 +49,41 @@ function SettingsContent() {
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <Label htmlFor="name">Full Name</Label>
-                  <Input id="name" defaultValue={user?.name || ""} className="mt-1" />
+                  <Input id="name" value={name} onChange={(e) => setName(e.target.value)} className="mt-1" />
                 </div>
                 <div>
                   <Label htmlFor="settingsEmail">Email</Label>
-                  <Input id="settingsEmail" defaultValue={user?.email || ""} className="mt-1" />
+                  <Input id="settingsEmail" value={email} onChange={(e) => setEmail(e.target.value)} className="mt-1" />
                 </div>
                 <div>
                   <Label htmlFor="org">Organization</Label>
-                  <Input id="org" defaultValue={user?.organization || ""} className="mt-1" />
+                  <Input id="org" value={org} onChange={(e) => setOrg(e.target.value)} className="mt-1" />
                 </div>
                 <div>
                   <Label htmlFor="role">Role</Label>
                   <Input id="role" defaultValue={isNgo ? "NGO User" : "Grant Manager"} disabled className="mt-1 bg-gray-50 dark:bg-gray-700" />
                 </div>
+                <div>
+                  <Label htmlFor="phone">Phone</Label>
+                  <Input id="phone" value={phone} onChange={(e) => setPhone(e.target.value)} className="mt-1" placeholder="+91 ..." />
+                </div>
+                <div>
+                  <Label htmlFor="city">City</Label>
+                  <Input id="city" value={city} onChange={(e) => setCity(e.target.value)} className="mt-1" />
+                </div>
+                <div>
+                  <Label htmlFor="state">State</Label>
+                  <Input id="state" value={state} onChange={(e) => setState(e.target.value)} className="mt-1" />
+                </div>
               </div>
-              <Button>Save Changes</Button>
+              <div className="flex items-center gap-3">
+                <Button onClick={handleSave}>Save Changes</Button>
+                {saved && (
+                  <span className="flex items-center gap-1 text-sm font-medium text-green-600">
+                    <Check className="h-4 w-4" /> Saved successfully
+                  </span>
+                )}
+              </div>
             </CardContent>
           </Card>
 
