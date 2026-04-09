@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Application, Grant, ApplicationStatus } from "@/types";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
@@ -18,6 +19,7 @@ import {
   Building2,
   FileText,
   Check,
+  Globe,
   Minus,
 } from "lucide-react";
 
@@ -241,6 +243,9 @@ export function ApplicationDrawer({ application, grant, open, onOpenChange, onSt
 
         {/* Footer — Action Buttons */}
         <div className="border-t border-gray-200 dark:border-gray-700 p-4 bg-white dark:bg-gray-800">
+          <Link href="/dashboard/ngoverse" className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-700 mb-2">
+            <Globe className="h-3 w-3" /> Find NGOs in NGOverse
+          </Link>
           <div className="flex flex-wrap gap-2">
             {status === "Submitted" && (
               <>

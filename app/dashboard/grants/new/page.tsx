@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Header } from "@/components/layout/Header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -46,6 +47,7 @@ import {
   Zap,
   Loader2,
   Brain,
+  Globe,
 } from "lucide-react";
 
 const steps = ["Basic Details", "Targeting", "Evaluation Setup", "Review & Publish"];
@@ -1065,6 +1067,11 @@ export default function CreateGrantPage() {
                     <Button onClick={publishGrant}>
                       Publish Grant
                     </Button>
+                    <Link href="/dashboard/ngoverse">
+                      <Button variant="outline">
+                        <Globe className="mr-1 h-4 w-4" /> Find NGOs
+                      </Button>
+                    </Link>
                   </>
                 ) : (
                   <Button onClick={nextStep}>

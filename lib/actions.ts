@@ -543,3 +543,276 @@ export async function recalculateFitScore(
   // Recalculate
   return getOrCalculateFitScore(userId, grantId);
 }
+
+// ─── NGOverse ───
+
+export interface NGOverseFilters {
+  search?: string;
+  focusAreas?: string[];
+  geography?: string;
+  minFitScore?: number;
+  documentReady?: boolean;
+}
+
+export interface NGOverseCard {
+  userId: string;
+  name: string;
+  email: string;
+  organization: string;
+  orgType: string;
+  focusAreas: string[];
+  geography: string[];
+  totalApps: number;
+  approvedApps: number;
+  approvalRate: number;
+  grantsReceived: number;
+  fitScore: number;
+  impactScore: number;
+  documentReadiness: { registration: boolean; fcra: boolean; annual_report: boolean; proposal: boolean; budget: boolean; impact: boolean };
+  isShortlisted: boolean;
+}
+
+export async function getNGOverseProfiles(
+  filters: NGOverseFilters = {}
+): Promise<NGOverseCard[]> {
+  // Get all NGO users with their profiles, docs, and applications
+  const users = await prisma.user.findMany({
+    where: { role: "ngo_user" },
+    include: {
+      ngoProfile: true,
+      knowledgeDocuments: { select: { fileType: true } },
+    },
+  });
+
+  // Get application stats per NGO email
+  const allApps = await prisma.application.findMany({
+    select: { ngoEmail: true, status: true, totalBudget: true },
+  });
+
+  // Build a map: ngoEmail → stats
+  const appMap: Record<string, { total: number; approved: number; totalBudget: number }> = {};
+  for (const a of allApps) {
+    if (!appMap[a.ngoEmail]) appMap[a.ngoEmail] = { total: 0, approved: 0, totalBudget: 0 };
+    appMap[a.ngoEmail].total++;
+    if (a.status === "Approved") {
+      appMap[a.ngoEmail].approved++;
+      appMap[a.ngoEmail].totalBudget += a.totalBudget;
+    }
+  }
+
+  // Get NGOVerse shortlist data
+  const verseRows = await prisma.nGOVerseProfile.findMany();
+  const verseMap: Record<string, { isShortlisted: boolean; fitScore: number; impactScore: number }> = {};
+  for (const v of verseRows) {
+    verseMap[v.ngoId] = { isShortlisted: v.isShortlisted, fitScore: v.fitScore, impactScore: v.impactScore };
+  }
+
+  const cards: NGOverseCard[] = users.map((u) => {
+    const profile = u.ngoProfile;
+    const focusAreas: string[] = profile ? JSON.parse(profile.focusAreas) : [];
+    const geography: string[] = profile ? JSON.parse(profile.geography) : [];
+    const stats = appMap[u.email] || { total: 0, approved: 0, totalBudget: 0 };
+    const verse = verseMap[u.id];
+
+    const docTypes = new Set(u.knowledgeDocuments.map((d) => d.fileType));
+
+    return {
+      userId: u.id,
+      name: u.name,
+      email: u.email,
+      organization: u.organization,
+      orgType: profile?.registrationNo ? "Registered NGO" : "Community Org",
+      focusAreas,
+      geography,
+      totalApps: stats.total,
+      approvedApps: stats.approved,
+      approvalRate: stats.total > 0 ? Math.round((stats.approved / stats.total) * 100) : 0,
+      grantsReceived: stats.totalBudget,
+      fitScore: verse?.fitScore ?? profile?.profileComplete ?? 0,
+      impactScore: verse?.impactScore ?? profile?.impactScore ?? 0,
+      documentReadiness: {
+        registration: docTypes.has("registration"),
+        fcra: docTypes.has("fcra"),
+        annual_report: docTypes.has("annual_report"),
+        proposal: docTypes.has("proposal"),
+        budget: docTypes.has("budget"),
+        impact: docTypes.has("impact"),
+      },
+      isShortlisted: verse?.isShortlisted ?? false,
+    };
+  });
+
+  // Apply filters
+  let result = cards;
+
+  if (filters.search) {
+    const q = filters.search.toLowerCase();
+    result = result.filter(
+      (c) =>
+        c.name.toLowerCase().includes(q) ||
+        c.organization.toLowerCase().includes(q) ||
+        c.email.toLowerCase().includes(q)
+    );
+  }
+
+  if (filters.focusAreas && filters.focusAreas.length > 0) {
+    result = result.filter((c) =>
+      filters.focusAreas!.some((fa) => c.focusAreas.includes(fa))
+    );
+  }
+
+  if (filters.geography) {
+    result = result.filter((c) =>
+      c.geography.some((g) => g.toLowerCase().includes(filters.geography!.toLowerCase()))
+    );
+  }
+
+  if (filters.minFitScore && filters.minFitScore > 0) {
+    result = result.filter((c) => c.fitScore >= filters.minFitScore!);
+  }
+
+  if (filters.documentReady) {
+    result = result.filter(
+      (c) => c.documentReadiness.registration && c.documentReadiness.fcra
+    );
+  }
+
+  return result;
+}
+
+export async function inviteNGOToGrant(
+  ngoUserId: string,
+  grantId: string
+): Promise<void> {
+  const grant = await prisma.grant.findUnique({ where: { id: grantId } });
+  if (!grant) return;
+
+  await prisma.notification.create({
+    data: {
+      id: `notif-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      title: "Grant Invitation",
+      message: `You have been invited to apply for "${grant.title}". Check the Grants page to apply.`,
+      userId: ngoUserId,
+      createdAt: new Date().toISOString(),
+    },
+  });
+
+  await addActivity({
+    id: `act-${Date.now()}`,
+    type: "note_added",
+    message: `Invited NGO (${ngoUserId}) to apply for ${grant.title}`,
+    timestamp: new Date().toISOString(),
+  });
+}
+
+export async function shortlistNGO(
+  ngoUserId: string,
+  isShortlisted: boolean
+): Promise<void> {
+  await prisma.nGOVerseProfile.upsert({
+    where: { ngoId: ngoUserId },
+    update: { isShortlisted },
+    create: { ngoId: ngoUserId, isShortlisted },
+  });
+}
+
+export interface NGOFullProfile {
+  userId: string;
+  name: string;
+  email: string;
+  organization: string;
+  phone: string;
+  city: string;
+  state: string;
+  // Profile
+  mission: string;
+  vision: string;
+  focusAreas: string[];
+  geography: string[];
+  registrationNo: string;
+  fcraNo: string;
+  foundedYear: number | null;
+  teamSize: number | null;
+  annualBudget: number | null;
+  impactScore: number;
+  profileComplete: number;
+  // Stats
+  totalApps: number;
+  approvedApps: number;
+  approvalRate: number;
+  grantsReceived: number;
+  isShortlisted: boolean;
+  fitScore: number;
+  // Applications list
+  applications: Application[];
+  // Documents
+  documents: { id: string; fileName: string; fileType: string; extractedData: Record<string, string>; uploadedAt: string }[];
+}
+
+export async function getNGOFullProfile(
+  ngoUserId: string
+): Promise<NGOFullProfile | null> {
+  const user = await prisma.user.findUnique({
+    where: { id: ngoUserId },
+    include: {
+      ngoProfile: true,
+      knowledgeDocuments: { orderBy: { uploadedAt: "desc" } },
+    },
+  });
+  if (!user) return null;
+
+  const profile = user.ngoProfile;
+  const focusAreas: string[] = profile ? JSON.parse(profile.focusAreas) : [];
+  const geography: string[] = profile ? JSON.parse(profile.geography) : [];
+
+  // Get all applications by this NGO
+  const appRows = await prisma.application.findMany({
+    where: { ngoEmail: user.email },
+    orderBy: { submittedAt: "desc" },
+  });
+  const applications = appRows.map((r) => rowToApplication(r as unknown as Record<string, unknown>));
+
+  const approved = applications.filter((a) => a.status === "Approved");
+  const totalBudget = approved.reduce((s, a) => s + a.totalBudget, 0);
+
+  // Verse data
+  const verse = await prisma.nGOVerseProfile.findUnique({ where: { ngoId: ngoUserId } });
+
+  // Documents
+  const documents = user.knowledgeDocuments.map((d) => ({
+    id: d.id,
+    fileName: d.fileName,
+    fileType: d.fileType,
+    extractedData: JSON.parse(d.extractedData || "{}") as Record<string, string>,
+    uploadedAt: d.uploadedAt.toISOString(),
+  }));
+
+  return {
+    userId: user.id,
+    name: user.name,
+    email: user.email,
+    organization: user.organization,
+    phone: user.phone,
+    city: user.city,
+    state: user.state,
+    mission: profile?.mission || "",
+    vision: profile?.vision || "",
+    focusAreas,
+    geography,
+    registrationNo: profile?.registrationNo || "",
+    fcraNo: profile?.fcraNo || "",
+    foundedYear: profile?.foundedYear ?? null,
+    teamSize: profile?.teamSize ?? null,
+    annualBudget: profile?.annualBudget ?? null,
+    impactScore: verse?.impactScore ?? profile?.impactScore ?? 0,
+    profileComplete: profile?.profileComplete ?? 0,
+    totalApps: applications.length,
+    approvedApps: approved.length,
+    approvalRate: applications.length > 0 ? Math.round((approved.length / applications.length) * 100) : 0,
+    grantsReceived: totalBudget,
+    isShortlisted: verse?.isShortlisted ?? false,
+    fitScore: verse?.fitScore ?? profile?.profileComplete ?? 0,
+    applications,
+    documents,
+  };
+}

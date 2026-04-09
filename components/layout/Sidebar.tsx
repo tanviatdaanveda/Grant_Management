@@ -14,6 +14,7 @@ import {
   X,
   PanelLeftClose,
   PanelLeftOpen,
+  Globe,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Progress } from "@/components/ui/progress";
@@ -28,6 +29,7 @@ const navItems = [
   { href: "/dashboard/applications", label: "Applications", icon: Users },
   { href: "/dashboard/shortlisted", label: "Shortlisted", icon: Star },
   { href: "/dashboard/approved", label: "Approved", icon: CheckCircle },
+  { href: "/dashboard/ngoverse", label: "NGOverse", icon: Globe },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 

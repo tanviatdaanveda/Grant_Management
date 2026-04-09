@@ -1,19 +1,17 @@
-import Anthropic from "@anthropic-ai/sdk";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY ?? "" });
-const MODEL = "claude-sonnet-4-20250514";
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY ?? "");
+const MODEL = "gemini-1.5-flash";
 
 // ─── Helpers ───
 
-async function askClaude(systemPrompt: string, userPrompt: string): Promise<string> {
-  const res = await client.messages.create({
+async function askGemini(systemPrompt: string, userPrompt: string): Promise<string> {
+  const model = genAI.getGenerativeModel({
     model: MODEL,
-    max_tokens: 4096,
-    system: systemPrompt,
-    messages: [{ role: "user", content: userPrompt }],
+    systemInstruction: systemPrompt,
   });
-  const block = res.content[0];
-  return block.type === "text" ? block.text : "";
+  const result = await model.generateContent(userPrompt);
+  return result.response.text();
 }
 
 function parseJSON<T>(text: string, fallback: T): T {
@@ -41,7 +39,7 @@ For focusAreas and geography, return comma-separated values.
 Do not include any text outside the JSON object.`;
 
     const user = `Document type: ${fileType}\n\nDocument content:\n${fileText}`;
-    const result = await askClaude(system, user);
+    const result = await askGemini(system, user);
     return parseJSON<Record<string, string>>(result, {});
   } catch (error) {
     console.error("[ai] extractDocumentData failed:", error);
@@ -68,7 +66,7 @@ Do not include any text outside the JSON object.`;
 User's description:
 ${userPrompt}`;
 
-    const result = await askClaude(system, user);
+    const result = await askGemini(system, user);
     return parseJSON<Record<string, string>>(result, {});
   } catch (error) {
     console.error("[ai] promptToFormFields failed:", error);
@@ -121,7 +119,7 @@ Return ONLY a JSON object with:
 Do not include any text outside the JSON object.`;
 
     const user = `NGO Profile:\n${JSON.stringify(ngoProfile, null, 2)}\n\nGrant Details:\n${JSON.stringify(grant, null, 2)}`;
-    const result = await askClaude(system, user);
+    const result = await askGemini(system, user);
     return parseJSON<GrantFitResult>(result, empty);
   } catch (error) {
     console.error("[ai] calculateGrantFitScore failed:", error);
@@ -155,7 +153,7 @@ Do not include any text outside the JSON object.`;
 NGO name: ${ngoName}
 Grant name: ${grantName}${reasonClause}`;
 
-    const result = await askClaude(system, user);
+    const result = await askGemini(system, user);
     return parseJSON<StatusEmail>(result, { subject: "", body: "" });
   } catch (error) {
     console.error("[ai] generateStatusEmail failed:", error);
@@ -194,7 +192,7 @@ Ensure amounts are realistic for Indian CSR grants.
 Do not include any text outside the JSON object.`;
 
     const user = `Funder's description:\n${funderPrompt}\n\nPast grants for reference:\n${JSON.stringify(existingGrants, null, 2)}`;
-    const result = await askClaude(system, user);
+    const result = await askGemini(system, user);
     return parseJSON<Record<string, unknown>>(result, {});
   } catch (error) {
     console.error("[ai] suggestGrantTemplate failed:", error);
@@ -223,7 +221,7 @@ responseType should be one of: "Text", "Textarea", "Rating", "MCQ".
 Do not include any text outside the JSON array.`;
 
     const user = `Grant Title: ${title}\nDescription: ${description}\nFocus Areas: ${focusAreas.join(", ")}`;
-    const result = await askClaude(system, user);
+    const result = await askGemini(system, user);
     return parseJSON(result, empty);
   } catch (error) {
     console.error("[ai] suggestEvalQuestions failed:", error);
