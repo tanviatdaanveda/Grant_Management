@@ -89,7 +89,11 @@ export default function ApplyPage() {
     const newFilled: FilledField = { ...filledBy };
     if (data.projectTitle) { setProjectTitle(data.projectTitle); newFilled.projectTitle = source; }
     if (data.projectDescription) { setProjectDescription(data.projectDescription); newFilled.projectDescription = source; }
-    if (data.targetBeneficiaries) { setTargetBeneficiaries(Number(data.targetBeneficiaries)); newFilled.targetBeneficiaries = source; }
+    if (data.targetBeneficiaries) {
+      const parsed = parseInt(String(data.targetBeneficiaries).replace(/[^0-9]/g, ""), 10);
+      setTargetBeneficiaries(isNaN(parsed) ? 0 : parsed);
+      newFilled.targetBeneficiaries = source;
+    }
     if (data.implementationTimeline) { setImplementationTimeline(data.implementationTimeline); newFilled.implementationTimeline = source; }
     // Fill evaluation responses if AI returned matching keys
     const newEval = { ...evalResponses };
@@ -194,7 +198,9 @@ export default function ApplyPage() {
   const handleSubmit = async () => {
     if (!grant) return;
 
+    try {
     const newAppId = `APP-${Date.now().toString(36).toUpperCase()}`;
+    const safeBeneficiaries = isNaN(targetBeneficiaries) ? 0 : Math.round(targetBeneficiaries);
     const application: Application = {
       id: newAppId,
       grantId: grant.id,
@@ -206,7 +212,7 @@ export default function ApplyPage() {
       ngoEmail: mockProfile.ngoEmail,
       projectTitle,
       projectDescription,
-      targetBeneficiaries,
+      targetBeneficiaries: safeBeneficiaries,
       implementationTimeline,
       budgetItems,
       totalBudget,
@@ -250,6 +256,10 @@ export default function ApplyPage() {
 
     setAppId(newAppId);
     setShowConfirm(true);
+    } catch (err) {
+      console.error("Submit failed:", err);
+      alert("Failed to submit application. Please try again.");
+    }
   };
 
   if (!grant) {
