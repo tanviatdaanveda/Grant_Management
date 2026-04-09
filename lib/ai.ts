@@ -201,3 +201,32 @@ Do not include any text outside the JSON object.`;
     return {};
   }
 }
+
+// ─── 6. Suggest Evaluation Questions ───
+
+export async function suggestEvalQuestions(
+  title: string,
+  description: string,
+  focusAreas: string[]
+): Promise<{ question: string; responseType: string; maxScore: number; weightage: number }[]> {
+  const empty: { question: string; responseType: string; maxScore: number; weightage: number }[] = [];
+  try {
+    const system = `You are a grant evaluation design expert for Indian philanthropy on DaanVeda.
+Given a grant's title, description, and focus areas, suggest exactly 5 evaluation questions for screening NGO applications.
+Each question should test a different aspect: organizational capacity, project design, impact potential, sustainability, and financial planning.
+Return ONLY a JSON array with 5 objects:
+[
+  { "question": "<evaluation question>", "responseType": "Textarea", "maxScore": 10, "weightage": <number> }
+]
+Weightages across all 5 questions must sum to exactly 100.
+responseType should be one of: "Text", "Textarea", "Rating", "MCQ".
+Do not include any text outside the JSON array.`;
+
+    const user = `Grant Title: ${title}\nDescription: ${description}\nFocus Areas: ${focusAreas.join(", ")}`;
+    const result = await askClaude(system, user);
+    return parseJSON(result, empty);
+  } catch (error) {
+    console.error("[ai] suggestEvalQuestions failed:", error);
+    return empty;
+  }
+}

@@ -13,11 +13,40 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Grant, EvaluationQuestion, FocusArea, GrantType, FundType, Geography } from "@/types";
-import { saveGrant, addActivity, getWizardState, saveWizardState, clearWizardState } from "@/lib/actions";
+import {
+  saveGrant,
+  addActivity,
+  getWizardState,
+  saveWizardState,
+  clearWizardState,
+  getGrants,
+  aiSuggestGrantTemplate,
+  aiSuggestEvalQuestions,
+} from "@/lib/actions";
 import { generateId, formatCurrency, formatDate } from "@/lib/utils";
 import { cn } from "@/lib/utils";
-import { ChevronLeft, ChevronRight, Plus, Trash2, CheckCircle2, Save } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Plus,
+  Trash2,
+  CheckCircle2,
+  Save,
+  Sparkles,
+  Copy,
+  Zap,
+  Loader2,
+  Brain,
+} from "lucide-react";
 
 const steps = ["Basic Details", "Targeting", "Evaluation Setup", "Review & Publish"];
 
@@ -61,6 +90,17 @@ export default function CreateGrantPage() {
   const [data, setData] = useState<Partial<Grant>>(emptyGrant);
   const [showSuccess, setShowSuccess] = useState(false);
 
+  // AI state
+  const [aiFilledFields, setAiFilledFields] = useState<Set<string>>(new Set());
+  const [showPromptModal, setShowPromptModal] = useState(false);
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [aiFilling, setAiFilling] = useState<"prompt" | "template" | "smart" | "questions" | null>(null);
+  const [pastGrants, setPastGrants] = useState<Grant[]>([]);
+  const [suggestedQuestions, setSuggestedQuestions] = useState<
+    { question: string; responseType: string; maxScore: number; weightage: number }[]
+  >([]);
+
   useEffect(() => {
     getWizardState().then((saved) => {
       if (saved) {
@@ -77,6 +117,169 @@ export default function CreateGrantPage() {
 
   const persistState = (step: number, newData: Partial<Grant>) => {
     saveWizardState(JSON.stringify({ currentStep: step, data: newData }));
+  };
+
+  // Load past grants for template picker
+  useEffect(() => {
+    getGrants().then(setPastGrants);
+  }, []);
+
+  // ─── AI Fill Helpers ───
+
+  const applyTemplate = (template: Record<string, unknown>) => {
+    const filled = new Set<string>();
+    const updated = { ...data };
+
+    const fieldMap: Record<string, keyof Grant> = {
+      title: "title",
+      description: "description",
+      grantType: "grantType",
+      fundType: "fundType",
+      fundName: "fundName",
+      totalAmount: "totalAmount",
+      minAmount: "minAmount",
+      maxAmount: "maxAmount",
+      geography: "geography",
+      country: "country",
+      state: "state",
+      city: "city",
+      eligibilityCriteria: "eligibilityCriteria",
+      expectedOutcomes: "expectedOutcomes",
+      aiEvaluation: "aiEvaluation",
+    };
+
+    for (const [k, grantKey] of Object.entries(fieldMap)) {
+      if (template[k] !== undefined && template[k] !== "" && template[k] !== 0) {
+        (updated as Record<string, unknown>)[grantKey] = template[k];
+        filled.add(grantKey);
+      }
+    }
+
+    // Handle focus areas
+    if (Array.isArray(template.focusAreas) && template.focusAreas.length > 0) {
+      updated.focusAreas = template.focusAreas as FocusArea[];
+      filled.add("focusAreas");
+    }
+
+    // Handle evaluation questions from AI
+    if (Array.isArray(template.evaluationQuestions) && template.evaluationQuestions.length > 0) {
+      updated.evaluationQuestions = (template.evaluationQuestions as { question: string; weightage: number }[]).map((q) => ({
+        id: generateId(),
+        question: q.question || "",
+        responseType: "Textarea" as const,
+        maxScore: 10,
+        weightage: q.weightage || 20,
+      }));
+      filled.add("evaluationQuestions");
+    }
+
+    setData(updated);
+    setAiFilledFields((prev) => new Set([...prev, ...filled]));
+    persistState(currentStep, updated);
+  };
+
+  const handleAIDraft = async () => {
+    if (!aiPrompt.trim()) return;
+    setAiFilling("prompt");
+    setShowPromptModal(false);
+    try {
+      const result = await aiSuggestGrantTemplate(aiPrompt, pastGrants.slice(0, 3));
+      applyTemplate(result);
+    } catch (err) {
+      console.error("AI draft failed:", err);
+    } finally {
+      setAiFilling(null);
+      setAiPrompt("");
+    }
+  };
+
+  const handleUseTemplate = (templateGrant: Grant) => {
+    setShowTemplateModal(false);
+    const filled = new Set<string>();
+    const updated: Partial<Grant> = {
+      ...emptyGrant,
+      title: templateGrant.title + " (Copy)",
+      description: templateGrant.description,
+      grantType: templateGrant.grantType,
+      fundType: templateGrant.fundType,
+      fundName: templateGrant.fundName,
+      totalAmount: templateGrant.totalAmount,
+      minAmount: templateGrant.minAmount,
+      maxAmount: templateGrant.maxAmount,
+      geography: templateGrant.geography,
+      country: templateGrant.country,
+      state: templateGrant.state,
+      city: templateGrant.city,
+      focusAreas: [...templateGrant.focusAreas],
+      eligibilityCriteria: templateGrant.eligibilityCriteria,
+      expectedOutcomes: templateGrant.expectedOutcomes,
+      identifierType: templateGrant.identifierType,
+      evaluationQuestions: templateGrant.evaluationQuestions.map((q) => ({
+        ...q,
+        id: generateId(),
+      })),
+      aiEvaluation: templateGrant.aiEvaluation,
+    };
+    // Mark all non-empty fields
+    for (const [k, v] of Object.entries(updated)) {
+      if (v && v !== "" && v !== 0 && !(Array.isArray(v) && v.length === 0)) {
+        filled.add(k);
+      }
+    }
+    setData(updated);
+    setAiFilledFields(filled);
+    persistState(currentStep, updated);
+  };
+
+  const handleSmartFill = async () => {
+    const recent = pastGrants.find((g) => g.status === "Active") || pastGrants[0];
+    if (!recent) return;
+    setAiFilling("smart");
+    try {
+      handleUseTemplate(recent);
+    } finally {
+      setAiFilling(null);
+    }
+  };
+
+  const handleSuggestQuestions = async () => {
+    setAiFilling("questions");
+    setSuggestedQuestions([]);
+    try {
+      const result = await aiSuggestEvalQuestions(
+        data.title || "",
+        data.description || "",
+        data.focusAreas || []
+      );
+      setSuggestedQuestions(result);
+    } catch (err) {
+      console.error("AI suggest questions failed:", err);
+    } finally {
+      setAiFilling(null);
+    }
+  };
+
+  const addSuggestedQuestion = (sq: { question: string; responseType: string; maxScore: number; weightage: number }) => {
+    const questions = [...(data.evaluationQuestions || [])];
+    questions.push({
+      id: generateId(),
+      question: sq.question,
+      responseType: sq.responseType as "Text" | "Textarea" | "Rating" | "MCQ",
+      maxScore: sq.maxScore,
+      weightage: sq.weightage,
+    });
+    updateField("evaluationQuestions", questions);
+    setAiFilledFields((prev) => new Set([...prev, "evaluationQuestions"]));
+    setSuggestedQuestions((prev) => prev.filter((q) => q.question !== sq.question));
+  };
+
+  const aiBadge = (field: string) => {
+    if (!aiFilledFields.has(field)) return null;
+    return (
+      <Badge className="ml-2 text-[10px] px-1.5 py-0 bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-400">
+        <Sparkles className="mr-0.5 h-2.5 w-2.5" /> AI
+      </Badge>
+    );
   };
 
   const updateField = <K extends keyof Grant>(field: K, value: Grant[K]) => {
@@ -265,6 +468,51 @@ export default function CreateGrantPage() {
           </div>
         </div>
 
+        {/* AI Assist Toolbar */}
+        <div className="mb-6 rounded-xl border border-dashed border-purple-200 bg-purple-50/50 p-4 dark:border-purple-800 dark:bg-purple-950/20">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2 mr-2">
+              <Sparkles className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">AI Assist</span>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs border-purple-200 hover:bg-purple-100 dark:border-purple-800 dark:hover:bg-purple-900/40"
+              onClick={() => setShowPromptModal(true)}
+              disabled={aiFilling !== null}
+            >
+              {aiFilling === "prompt" ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Brain className="mr-1 h-3 w-3" />}
+              AI Draft from Prompt
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs border-blue-200 hover:bg-blue-100 dark:border-blue-800 dark:hover:bg-blue-900/40"
+              onClick={() => setShowTemplateModal(true)}
+              disabled={aiFilling !== null || pastGrants.length === 0}
+            >
+              <Copy className="mr-1 h-3 w-3" />
+              Use Past Grant as Template
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs border-amber-200 hover:bg-amber-100 dark:border-amber-800 dark:hover:bg-amber-900/40"
+              onClick={handleSmartFill}
+              disabled={aiFilling !== null || pastGrants.length === 0}
+            >
+              {aiFilling === "smart" ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Zap className="mr-1 h-3 w-3" />}
+              Smart Fill
+            </Button>
+          </div>
+          {aiFilling === "prompt" && (
+            <p className="mt-2 text-xs text-purple-600 dark:text-purple-400 flex items-center gap-1">
+              <Loader2 className="h-3 w-3 animate-spin" /> AI is generating your grant template...
+            </p>
+          )}
+        </div>
+
         <Card>
           <CardContent className="p-6">
             {/* Step 1: Basic Details */}
@@ -273,7 +521,7 @@ export default function CreateGrantPage() {
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Basic Details</h2>
                 <div className="grid gap-4">
                   <div>
-                    <Label htmlFor="title">Grant Title *</Label>
+                    <div className="flex items-center"><Label htmlFor="title">Grant Title *</Label>{aiBadge("title")}</div>
                     <Input
                       id="title"
                       value={data.title || ""}
@@ -283,7 +531,7 @@ export default function CreateGrantPage() {
                     />
                   </div>
                   <div>
-                    <Label htmlFor="description">Description *</Label>
+                    <div className="flex items-center"><Label htmlFor="description">Description *</Label>{aiBadge("description")}</div>
                     <Textarea
                       id="description"
                       value={data.description || ""}
@@ -295,7 +543,7 @@ export default function CreateGrantPage() {
                   </div>
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div>
-                      <Label htmlFor="grantType">Grant Type</Label>
+                      <div className="flex items-center"><Label htmlFor="grantType">Grant Type</Label>{aiBadge("grantType")}</div>
                       <Select
                         id="grantType"
                         value={data.grantType || "CSR"}
@@ -308,7 +556,7 @@ export default function CreateGrantPage() {
                       </Select>
                     </div>
                     <div>
-                      <Label htmlFor="fundType">Fund Type</Label>
+                      <div className="flex items-center"><Label htmlFor="fundType">Fund Type</Label>{aiBadge("fundType")}</div>
                       <Select
                         id="fundType"
                         value={data.fundType || "Project"}
@@ -322,7 +570,7 @@ export default function CreateGrantPage() {
                     </div>
                   </div>
                   <div>
-                    <Label htmlFor="fundName">Fund Name</Label>
+                    <div className="flex items-center"><Label htmlFor="fundName">Fund Name</Label>{aiBadge("fundName")}</div>
                     <Input
                       id="fundName"
                       value={data.fundName || ""}
@@ -333,7 +581,7 @@ export default function CreateGrantPage() {
                   </div>
                   <div className="grid gap-4 sm:grid-cols-3">
                     <div>
-                      <Label htmlFor="totalAmount">Total Amount (₹)</Label>
+                      <div className="flex items-center"><Label htmlFor="totalAmount">Total Amount (₹)</Label>{aiBadge("totalAmount")}</div>
                       <Input
                         id="totalAmount"
                         type="number"
@@ -428,7 +676,7 @@ export default function CreateGrantPage() {
                 <div className="grid gap-4">
                   <div className="grid gap-4 sm:grid-cols-3">
                     <div>
-                      <Label htmlFor="geography">Geography</Label>
+                      <div className="flex items-center"><Label htmlFor="geography">Geography</Label>{aiBadge("geography")}</div>
                       <Select
                         id="geography"
                         value={data.geography || "National"}
@@ -463,7 +711,7 @@ export default function CreateGrantPage() {
                   </div>
 
                   <div>
-                    <Label className="mb-3 block">Focus Areas</Label>
+                    <Label className="mb-3 block">Focus Areas{aiBadge("focusAreas")}</Label>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                       {focusAreas.map((area) => (
                         <label
@@ -487,7 +735,7 @@ export default function CreateGrantPage() {
 
                   <div>
                     <div className="flex items-center justify-between mb-1">
-                      <Label htmlFor="eligibility">Eligibility Criteria</Label>
+                      <div className="flex items-center"><Label htmlFor="eligibility">Eligibility Criteria</Label>{aiBadge("eligibilityCriteria")}</div>
                       <span className="text-xs text-gray-400">
                         {(data.eligibilityCriteria || "").length}/500
                       </span>
@@ -505,7 +753,7 @@ export default function CreateGrantPage() {
 
                   <div>
                     <div className="flex items-center justify-between mb-1">
-                      <Label htmlFor="outcomes">Expected Outcomes</Label>
+                      <div className="flex items-center"><Label htmlFor="outcomes">Expected Outcomes</Label>{aiBadge("expectedOutcomes")}</div>
                       <span className="text-xs text-gray-400">
                         {(data.expectedOutcomes || "").length}/500
                       </span>
@@ -547,11 +795,62 @@ export default function CreateGrantPage() {
 
                 <div>
                   <div className="flex items-center justify-between mb-4">
-                    <Label>Evaluation Questions</Label>
-                    <Button variant="outline" size="sm" onClick={addQuestion}>
-                      <Plus className="mr-1 h-3 w-3" /> Add Question
-                    </Button>
+                    <div className="flex items-center">
+                      <Label>Evaluation Questions</Label>
+                      {aiBadge("evaluationQuestions")}
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleSuggestQuestions}
+                        disabled={aiFilling !== null || !data.title}
+                        className="text-xs border-purple-200 hover:bg-purple-100 dark:border-purple-800 dark:hover:bg-purple-900/40"
+                      >
+                        {aiFilling === "questions" ? (
+                          <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                        ) : (
+                          <Sparkles className="mr-1 h-3 w-3 text-purple-600" />
+                        )}
+                        AI Suggest Questions
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={addQuestion}>
+                        <Plus className="mr-1 h-3 w-3" /> Add Question
+                      </Button>
+                    </div>
                   </div>
+
+                  {/* AI Suggested Questions */}
+                  {suggestedQuestions.length > 0 && (
+                    <div className="mb-4 rounded-lg border border-dashed border-purple-200 bg-purple-50/30 p-4 dark:border-purple-800 dark:bg-purple-950/10">
+                      <p className="text-xs font-medium text-purple-600 dark:text-purple-400 mb-3 flex items-center gap-1">
+                        <Sparkles className="h-3 w-3" /> AI Suggested Questions
+                      </p>
+                      <div className="space-y-2">
+                        {suggestedQuestions.map((sq, i) => (
+                          <div
+                            key={i}
+                            className="flex items-start justify-between gap-3 rounded-lg bg-white p-3 border border-purple-100 dark:bg-gray-800 dark:border-purple-900"
+                          >
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm text-gray-700 dark:text-gray-300">{sq.question}</p>
+                              <p className="text-[10px] text-gray-400 mt-0.5">
+                                {sq.responseType} · Max Score: {sq.maxScore} · Weightage: {sq.weightage}%
+                              </p>
+                            </div>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-xs flex-shrink-0"
+                              onClick={() => addSuggestedQuestion(sq)}
+                            >
+                              <Plus className="mr-1 h-3 w-3" /> Add
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {(data.evaluationQuestions || []).length === 0 ? (
                     <div className="text-center py-8 text-gray-400 border border-dashed border-gray-300 rounded-lg dark:border-gray-600">
@@ -777,6 +1076,70 @@ export default function CreateGrantPage() {
           </CardContent>
         </Card>
       </main>
+
+      {/* AI Draft Prompt Modal */}
+      <Dialog open={showPromptModal} onOpenChange={setShowPromptModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Brain className="h-5 w-5 text-purple-600" />
+              AI Draft from Prompt
+            </DialogTitle>
+            <DialogDescription>
+              Describe the grant you want to create and AI will generate a complete template.
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            value={aiPrompt}
+            onChange={(e) => setAiPrompt(e.target.value)}
+            placeholder="e.g., I want to run a ₹50 lakh CSR grant for rural education in Karnataka, targeting 10 NGOs working on digital literacy for school children..."
+            rows={5}
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowPromptModal(false)}>Cancel</Button>
+            <Button onClick={handleAIDraft} disabled={!aiPrompt.trim()}>
+              <Sparkles className="mr-1 h-4 w-4" /> Generate
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Past Grant Template Modal */}
+      <Dialog open={showTemplateModal} onOpenChange={setShowTemplateModal}>
+        <DialogContent className="max-h-[70vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Copy className="h-5 w-5 text-blue-600" />
+              Use Past Grant as Template
+            </DialogTitle>
+            <DialogDescription>
+              Select a previous grant to use as a starting template.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            {pastGrants.length === 0 ? (
+              <p className="text-sm text-gray-400 text-center py-4">No past grants found.</p>
+            ) : (
+              pastGrants.map((g) => (
+                <button
+                  key={g.id}
+                  onClick={() => handleUseTemplate(g)}
+                  className="w-full rounded-lg border border-gray-200 p-3 text-left hover:border-blue-300 hover:bg-blue-50 transition-colors dark:border-gray-700 dark:hover:border-blue-700 dark:hover:bg-blue-900/20"
+                >
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">{g.title}</p>
+                  <div className="flex items-center gap-3 mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    <span>{g.grantType}</span>
+                    <span>{formatCurrency(g.totalAmount)}</span>
+                    <Badge variant={g.status === "Active" ? "success" : "secondary"} className="text-[10px]">
+                      {g.status}
+                    </Badge>
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

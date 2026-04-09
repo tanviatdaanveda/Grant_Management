@@ -347,6 +347,25 @@ export async function aiPromptToFormFields(
   return promptToFormFields(userPrompt, grantFields);
 }
 
+export async function aiSuggestGrantTemplate(
+  funderPrompt: string,
+  existingGrants: object[]
+): Promise<Record<string, unknown>> {
+  const { suggestGrantTemplate } = await import("@/lib/ai");
+  return suggestGrantTemplate(funderPrompt, existingGrants);
+}
+
+export async function aiSuggestEvalQuestions(
+  title: string,
+  description: string,
+  focusAreas: string[]
+): Promise<
+  { question: string; responseType: string; maxScore: number; weightage: number }[]
+> {
+  const { suggestEvalQuestions } = await import("@/lib/ai");
+  return suggestEvalQuestions(title, description, focusAreas);
+}
+
 // ─── Grant Fit Score ───
 
 export interface FitScoreData {
