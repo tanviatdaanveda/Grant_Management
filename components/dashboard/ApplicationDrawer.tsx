@@ -1,153 +1,225 @@
 "use client";
 
-import { Application } from "@/types";
+import { useState } from "react";
+import { Application, Grant, ApplicationStatus } from "@/types";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
-import { StatusBadge } from "./StatusBadge";
-import { formatCurrency, formatDate } from "@/lib/utils";
-import { MapPin, FileText, CheckCircle, XCircle, Star, Eye } from "lucide-react";
-import { useState } from "react";
+import { updateApplicationStatus } from "@/lib/actions";
+import { formatCurrency } from "@/lib/utils";
+import {
+  CheckCircle2,
+  XCircle,
+  Clock,
+  Mail,
+  MapPin,
+  Phone,
+  Building2,
+  FileText,
+  Check,
+  Minus,
+} from "lucide-react";
+
+// ─── SVG Circular Score ───
+function CircularScore({ score, size = 80, strokeWidth = 8 }: { score: number; size?: number; strokeWidth?: number }) {
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference - (score / 100) * circumference;
+  const color = score >= 75 ? "text-green-500" : score >= 50 ? "text-amber-500" : "text-red-500";
+  const bg = score >= 75 ? "text-green-100 dark:text-green-900/40" : score >= 50 ? "text-amber-100 dark:text-amber-900/40" : "text-red-100 dark:text-red-900/40";
+
+  return (
+    <div className="relative inline-flex items-center justify-center">
+      <svg width={size} height={size} className="-rotate-90">
+        <circle cx={size / 2} cy={size / 2} r={radius} strokeWidth={strokeWidth} fill="none" className={`stroke-current ${bg}`} />
+        <circle cx={size / 2} cy={size / 2} r={radius} strokeWidth={strokeWidth} fill="none" strokeLinecap="round"
+          strokeDasharray={circumference} strokeDashoffset={offset} className={`stroke-current ${color} transition-all duration-500`} />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className={`text-lg font-bold ${color}`}>{Math.round(score)}</span>
+        <span className="text-[8px] text-gray-400">/ 100</span>
+      </div>
+    </div>
+  );
+}
+
+const STATUS_BADGE: Record<string, "success" | "secondary" | "destructive" | "default"> = {
+  Submitted: "default",
+  "In Review": "secondary",
+  Shortlisted: "default",
+  Approved: "success",
+  Rejected: "destructive",
+};
 
 interface ApplicationDrawerProps {
   application: Application | null;
+  grant: Grant | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onStatusChange: (id: string, status: Application["status"]) => void;
+  onStatusChange: (appId: string, newStatus: ApplicationStatus) => void;
 }
 
-export function ApplicationDrawer({
-  application,
-  open,
-  onOpenChange,
-  onStatusChange,
-}: ApplicationDrawerProps) {
-  const [note, setNote] = useState("");
+export function ApplicationDrawer({ application, grant, open, onOpenChange, onStatusChange }: ApplicationDrawerProps) {
+  const [updating, setUpdating] = useState<string | null>(null);
 
   if (!application) return null;
 
-  const scoreColor =
-    application.score >= 80
-      ? "text-green-600"
-      : application.score >= 60
-      ? "text-amber-600"
-      : "text-red-600";
+  const handleStatusChange = async (newStatus: ApplicationStatus) => {
+    setUpdating(newStatus);
+    try {
+      await updateApplicationStatus(application.id, newStatus);
+      onStatusChange(application.id, newStatus);
+    } catch {
+      // ignore
+    } finally {
+      setUpdating(null);
+    }
+  };
+
+  const status = application.status;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" onClose={() => onOpenChange(false)} className="overflow-y-auto">
-        <SheetHeader className="pr-8">
-          <div className="flex items-center gap-2">
-            <SheetTitle>{application.ngoName}</SheetTitle>
-            <StatusBadge status={application.status} />
+      <SheetContent side="right" onClose={() => onOpenChange(false)} className="flex flex-col">
+        {/* Header */}
+        <SheetHeader className="pr-10">
+          <div className="flex items-center gap-2 mt-2">
+            <SheetTitle className="text-base">{application.ngoName}</SheetTitle>
+            <Badge variant={STATUS_BADGE[status] || "default"}>{status}</Badge>
           </div>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            {application.ngoRegistration} · <MapPin className="inline h-3 w-3" /> {application.ngoLocation}
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            Application {application.id}
           </p>
         </SheetHeader>
 
-        <div className="p-6 space-y-6">
-          {/* Score Widget */}
-          <div className="flex items-center justify-center">
-            <div className="relative flex h-24 w-24 items-center justify-center rounded-full border-4 border-gray-200 dark:border-gray-700">
-              <svg className="absolute inset-0 -rotate-90" viewBox="0 0 100 100">
-                <circle
-                  cx="50" cy="50" r="42"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="8"
-                  strokeDasharray={`${application.score * 2.64} ${264 - application.score * 2.64}`}
-                  className={scoreColor}
-                />
-              </svg>
-              <span className={`text-2xl font-bold ${scoreColor}`}>{application.score}</span>
+        {/* Scrollable Content */}
+        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6">
+          {/* Section 1: NGO Details */}
+          <div>
+            <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-3">NGO Details</h4>
+            <div className="space-y-2 text-sm">
+              <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
+                <Building2 className="h-3.5 w-3.5 text-gray-400" />
+                {application.ngoName}
+              </div>
+              <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
+                <FileText className="h-3.5 w-3.5 text-gray-400" />
+                Reg: {application.ngoRegistration}
+              </div>
+              <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
+                <MapPin className="h-3.5 w-3.5 text-gray-400" />
+                {application.ngoLocation}
+              </div>
+              <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
+                <Phone className="h-3.5 w-3.5 text-gray-400" />
+                {application.ngoContact}
+              </div>
+              <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
+                <Mail className="h-3.5 w-3.5 text-gray-400" />
+                {application.ngoEmail}
+              </div>
             </div>
           </div>
 
           <Separator />
 
-          {/* Grant Info */}
+          {/* Section 2: Project Proposal */}
           <div>
-            <h4 className="text-xs font-medium uppercase tracking-wider text-gray-400 mb-2">Grant Applied For</h4>
-            <p className="text-sm font-medium text-gray-900 dark:text-white">{application.grantTitle}</p>
-          </div>
-
-          {/* Project Details */}
-          <div>
-            <h4 className="text-xs font-medium uppercase tracking-wider text-gray-400 mb-2">Project</h4>
-            <p className="text-sm font-semibold text-gray-900 dark:text-white">{application.projectTitle}</p>
-            <p className="text-sm text-gray-600 mt-1 dark:text-gray-400">{application.projectDescription}</p>
-            <div className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-              <span>Beneficiaries: {application.targetBeneficiaries.toLocaleString("en-IN")}</span>
-              <span className="mx-2">·</span>
-              <span>Timeline: {application.implementationTimeline}</span>
+            <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-3">Project Proposal</h4>
+            <div className="space-y-3">
+              <div>
+                <p className="text-[10px] text-gray-400 uppercase">Project Title</p>
+                <p className="text-sm font-medium text-gray-900 dark:text-white">{application.projectTitle}</p>
+              </div>
+              <div>
+                <p className="text-[10px] text-gray-400 uppercase">Description</p>
+                <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{application.projectDescription}</p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="text-[10px] text-gray-400 uppercase">Target Beneficiaries</p>
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">{application.targetBeneficiaries.toLocaleString()}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-gray-400 uppercase">Timeline</p>
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">{application.implementationTimeline}</p>
+                </div>
+              </div>
             </div>
           </div>
 
           <Separator />
 
-          {/* Budget */}
+          {/* Section 3: Budget */}
           <div>
-            <h4 className="text-xs font-medium uppercase tracking-wider text-gray-400 mb-2">Budget Breakdown</h4>
-            <div className="rounded-lg border border-gray-200 overflow-hidden dark:border-gray-700">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50 dark:bg-gray-700/50">
+            <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-3">Budget</h4>
+            <div className="rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+              <table className="w-full text-xs">
+                <thead className="bg-gray-50 dark:bg-gray-700/30">
                   <tr>
-                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">Category</th>
-                    <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400">Amount</th>
+                    <th className="text-left p-2 font-medium text-gray-500">Category</th>
+                    <th className="text-right p-2 font-medium text-gray-500">Amount</th>
+                    <th className="text-left p-2 font-medium text-gray-500">Description</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                <tbody>
                   {application.budgetItems.map((item) => (
-                    <tr key={item.id}>
-                      <td className="px-3 py-2 text-gray-700 dark:text-gray-300">{item.category}</td>
-                      <td className="px-3 py-2 text-right text-gray-900 dark:text-white">{formatCurrency(item.amount)}</td>
+                    <tr key={item.id} className="border-t border-gray-100 dark:border-gray-700">
+                      <td className="p-2 text-gray-700 dark:text-gray-300">{item.category || "—"}</td>
+                      <td className="p-2 text-right font-medium text-gray-900 dark:text-white">{formatCurrency(item.amount)}</td>
+                      <td className="p-2 text-gray-500 dark:text-gray-400">{item.description || "—"}</td>
                     </tr>
                   ))}
-                  <tr className="bg-gray-50 font-semibold dark:bg-gray-700/50">
-                    <td className="px-3 py-2 text-gray-900 dark:text-white">Total</td>
-                    <td className="px-3 py-2 text-right text-indigo-600 dark:text-indigo-400">
-                      {formatCurrency(application.totalBudget)}
-                    </td>
-                  </tr>
                 </tbody>
+                <tfoot>
+                  <tr className="border-t-2 border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/30">
+                    <td className="p-2 font-semibold text-gray-900 dark:text-white">Total</td>
+                    <td className="p-2 text-right font-bold text-indigo-600 dark:text-indigo-400">{formatCurrency(application.totalBudget)}</td>
+                    <td></td>
+                  </tr>
+                </tfoot>
               </table>
             </div>
           </div>
 
-          {/* Evaluation Responses */}
-          <div>
-            <h4 className="text-xs font-medium uppercase tracking-wider text-gray-400 mb-2">Evaluation Responses</h4>
-            <div className="space-y-3">
-              {application.evaluationResponses.map((r) => (
-                <div key={r.questionId} className="rounded-lg bg-gray-50 p-3 dark:bg-gray-700/30">
-                  <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{r.question}</p>
-                  <p className="text-sm text-gray-800 dark:text-gray-200">{r.answer}</p>
-                </div>
-              ))}
-            </div>
-          </div>
+          <Separator />
 
-          {/* Documents */}
+          {/* Section 4: Evaluation Responses */}
+          {application.evaluationResponses.length > 0 && (
+            <>
+              <div>
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-3">Evaluation Responses</h4>
+                <div className="space-y-3">
+                  {application.evaluationResponses.map((er) => (
+                    <div key={er.questionId} className="rounded-lg bg-gray-50 p-3 dark:bg-gray-700/30">
+                      <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{er.question}</p>
+                      <p className="text-sm text-gray-900 dark:text-white whitespace-pre-wrap">{er.answer || <span className="text-gray-400 italic">No response</span>}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <Separator />
+            </>
+          )}
+
+          {/* Section 5: Documents */}
           <div>
-            <h4 className="text-xs font-medium uppercase tracking-wider text-gray-400 mb-2">Documents</h4>
+            <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-3">Documents</h4>
             <div className="space-y-2">
               {application.documents.map((doc) => (
-                <div
-                  key={doc.name}
-                  className="flex items-center justify-between rounded-lg border border-gray-200 px-3 py-2 dark:border-gray-700"
-                >
-                  <div className="flex items-center gap-2">
-                    <FileText className="h-4 w-4 text-gray-400" />
-                    <span className="text-sm text-gray-700 dark:text-gray-300">{doc.name}</span>
-                  </div>
-                  <Badge
-                    variant={doc.status === "Uploaded" ? "success" : doc.status === "Pending" ? "warning" : "secondary"}
-                  >
-                    {doc.status}
-                  </Badge>
+                <div key={doc.name} className="flex items-center gap-2 text-sm">
+                  {doc.status === "Uploaded" ? (
+                    <Check className="h-4 w-4 text-green-500" />
+                  ) : (
+                    <Minus className="h-4 w-4 text-gray-300" />
+                  )}
+                  <span className={doc.status === "Uploaded" ? "text-gray-700 dark:text-gray-300" : "text-gray-400"}>
+                    {doc.name}
+                  </span>
+                  {doc.fileName && (
+                    <span className="text-[10px] text-gray-400 ml-auto">{doc.fileName}</span>
+                  )}
                 </div>
               ))}
             </div>
@@ -155,55 +227,57 @@ export function ApplicationDrawer({
 
           <Separator />
 
-          {/* Notes */}
+          {/* Section 6: AI Score */}
           <div>
-            <h4 className="text-xs font-medium uppercase tracking-wider text-gray-400 mb-2">Add Note</h4>
-            <Textarea
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="Add internal notes about this application..."
-              rows={3}
-            />
-            <Button size="sm" variant="outline" className="mt-2" onClick={() => setNote("")}>
-              Save Note
-            </Button>
+            <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-3">AI Score</h4>
+            <div className="flex items-center gap-4">
+              <CircularScore score={application.score} />
+              <div className="text-xs space-y-1 text-gray-600 dark:text-gray-400">
+                <p>Score calculated based on profile completeness, focus area alignment, and eligibility match.</p>
+              </div>
+            </div>
           </div>
+        </div>
 
-          {/* Action Buttons */}
-          <div className="grid grid-cols-2 gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onStatusChange(application.id, "In Review")}
-              disabled={application.status === "In Review"}
-            >
-              <Eye className="mr-1 h-3 w-3" /> Move to Review
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="text-purple-600 border-purple-200 hover:bg-purple-50 dark:border-purple-800 dark:hover:bg-purple-900/30"
-              onClick={() => onStatusChange(application.id, "Shortlisted")}
-              disabled={application.status === "Shortlisted"}
-            >
-              <Star className="mr-1 h-3 w-3" /> Shortlist
-            </Button>
-            <Button
-              variant="success"
-              size="sm"
-              onClick={() => onStatusChange(application.id, "Approved")}
-              disabled={application.status === "Approved"}
-            >
-              <CheckCircle className="mr-1 h-3 w-3" /> Approve
-            </Button>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => onStatusChange(application.id, "Rejected")}
-              disabled={application.status === "Rejected"}
-            >
-              <XCircle className="mr-1 h-3 w-3" /> Reject
-            </Button>
+        {/* Footer — Action Buttons */}
+        <div className="border-t border-gray-200 dark:border-gray-700 p-4 bg-white dark:bg-gray-800">
+          <div className="flex flex-wrap gap-2">
+            {status === "Submitted" && (
+              <>
+                <Button size="sm" variant="outline" className="flex-1" onClick={() => handleStatusChange("In Review")} disabled={updating !== null}>
+                  {updating === "In Review" ? <Clock className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Clock className="mr-1 h-3.5 w-3.5" />}
+                  Move to Review
+                </Button>
+                <Button size="sm" variant="outline" className="flex-1 border-red-200 text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400" onClick={() => handleStatusChange("Rejected")} disabled={updating !== null}>
+                  <XCircle className="mr-1 h-3.5 w-3.5" /> Reject
+                </Button>
+              </>
+            )}
+            {status === "In Review" && (
+              <>
+                <Button size="sm" className="flex-1 bg-purple-600 hover:bg-purple-700" onClick={() => handleStatusChange("Shortlisted")} disabled={updating !== null}>
+                  <CheckCircle2 className="mr-1 h-3.5 w-3.5" /> Shortlist
+                </Button>
+                <Button size="sm" variant="outline" className="flex-1 border-red-200 text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400" onClick={() => handleStatusChange("Rejected")} disabled={updating !== null}>
+                  <XCircle className="mr-1 h-3.5 w-3.5" /> Reject
+                </Button>
+              </>
+            )}
+            {status === "Shortlisted" && (
+              <>
+                <Button size="sm" className="flex-1 bg-green-600 hover:bg-green-700" onClick={() => handleStatusChange("Approved")} disabled={updating !== null}>
+                  <CheckCircle2 className="mr-1 h-3.5 w-3.5" /> Approve
+                </Button>
+                <Button size="sm" variant="outline" className="flex-1 border-red-200 text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400" onClick={() => handleStatusChange("Rejected")} disabled={updating !== null}>
+                  <XCircle className="mr-1 h-3.5 w-3.5" /> Reject
+                </Button>
+              </>
+            )}
+            {(status === "Approved" || status === "Rejected") && (
+              <Button size="sm" variant="outline" className="flex-1" onClick={() => window.open(`mailto:${application.ngoEmail}`)}>
+                <Mail className="mr-1 h-3.5 w-3.5" /> Email NGO
+              </Button>
+            )}
           </div>
         </div>
       </SheetContent>

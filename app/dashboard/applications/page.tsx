@@ -265,6 +265,7 @@ export default function ApplicationsPage() {
 
       <ApplicationDrawer
         application={drawerApp}
+        grant={null}
         open={drawerOpen}
         onOpenChange={setDrawerOpen}
         onStatusChange={handleStatusChange}

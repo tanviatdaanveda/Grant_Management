@@ -97,6 +97,64 @@ export async function getApplications(): Promise<Application[]> {
   return rows.map((r) => rowToApplication(r as unknown as Record<string, unknown>));
 }
 
+export async function getApplicationsByGrant(grantId: string): Promise<Application[]> {
+  const rows = await prisma.application.findMany({
+    where: { grantId },
+    orderBy: { submittedAt: "desc" },
+  });
+  return rows.map((r) => rowToApplication(r as unknown as Record<string, unknown>));
+}
+
+export interface ApplicationStats {
+  total: number;
+  submitted: number;
+  inReview: number;
+  shortlisted: number;
+  approved: number;
+  rejected: number;
+}
+
+export async function getApplicationStatsForGrant(grantId: string): Promise<ApplicationStats> {
+  const rows = await prisma.application.findMany({
+    where: { grantId },
+    select: { status: true },
+  });
+  const stats: ApplicationStats = { total: 0, submitted: 0, inReview: 0, shortlisted: 0, approved: 0, rejected: 0 };
+  for (const r of rows) {
+    stats.total++;
+    if (r.status === "Submitted") stats.submitted++;
+    else if (r.status === "In Review") stats.inReview++;
+    else if (r.status === "Shortlisted") stats.shortlisted++;
+    else if (r.status === "Approved") stats.approved++;
+    else if (r.status === "Rejected") stats.rejected++;
+  }
+  return stats;
+}
+
+export async function getApplicationStatsForGrants(
+  grantIds: string[]
+): Promise<Record<string, ApplicationStats>> {
+  const rows = await prisma.application.findMany({
+    where: { grantId: { in: grantIds } },
+    select: { grantId: true, status: true },
+  });
+  const map: Record<string, ApplicationStats> = {};
+  for (const id of grantIds) {
+    map[id] = { total: 0, submitted: 0, inReview: 0, shortlisted: 0, approved: 0, rejected: 0 };
+  }
+  for (const r of rows) {
+    const s = map[r.grantId];
+    if (!s) continue;
+    s.total++;
+    if (r.status === "Submitted") s.submitted++;
+    else if (r.status === "In Review") s.inReview++;
+    else if (r.status === "Shortlisted") s.shortlisted++;
+    else if (r.status === "Approved") s.approved++;
+    else if (r.status === "Rejected") s.rejected++;
+  }
+  return map;
+}
+
 export async function getApplication(id: string): Promise<Application | undefined> {
   const r = await prisma.application.findUnique({ where: { id } });
   return r ? rowToApplication(r as unknown as Record<string, unknown>) : undefined;

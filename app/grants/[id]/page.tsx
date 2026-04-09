@@ -10,6 +10,7 @@ import { Separator } from "@/components/ui/separator";
 import { Grant } from "@/types";
 import { getGrant } from "@/lib/actions";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import { useAppStore } from "@/lib/store";
 import {
   ArrowLeft,
   Calendar,
@@ -25,6 +26,8 @@ import Image from "next/image";
 export default function GrantDetailPage() {
   const params = useParams();
   const [grant, setGrant] = useState<Grant | null>(null);
+  const currentUser = useAppStore((s) => s.currentUser);
+  const isManager = currentUser?.role === "grant_manager";
 
   useEffect(() => {
     const id = params.id as string;
@@ -196,11 +199,19 @@ export default function GrantDetailPage() {
                 </div>
 
                 {grant.status === "Active" && (
-                  <Link href={`/grants/${grant.id}/apply`}>
-                    <Button className="w-full mt-2" size="lg">
-                      Apply Now <ArrowRight className="ml-2 h-4 w-4" />
-                    </Button>
-                  </Link>
+                  isManager ? (
+                    <Link href={`/dashboard/grants/${grant.id}/applications`}>
+                      <Button className="w-full mt-2" size="lg">
+                        View Applications <Users className="ml-2 h-4 w-4" />
+                      </Button>
+                    </Link>
+                  ) : (
+                    <Link href={`/grants/${grant.id}/apply`}>
+                      <Button className="w-full mt-2" size="lg">
+                        Apply Now <ArrowRight className="ml-2 h-4 w-4" />
+                      </Button>
+                    </Link>
+                  )
                 )}
               </CardContent>
             </Card>

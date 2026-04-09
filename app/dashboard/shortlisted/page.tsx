@@ -70,7 +70,7 @@ export default function ShortlistedPage() {
           )}
         </div>
       </main>
-      <ApplicationDrawer application={drawerApp} open={drawerOpen} onOpenChange={setDrawerOpen} onStatusChange={handleStatusChange} />
+      <ApplicationDrawer application={drawerApp} grant={null} open={drawerOpen} onOpenChange={setDrawerOpen} onStatusChange={handleStatusChange} />
     </>
   );
 }
