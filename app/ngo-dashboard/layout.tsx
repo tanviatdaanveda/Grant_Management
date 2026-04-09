@@ -3,14 +3,25 @@
 import { useRouter } from "next/navigation";
 import { NgoSidebar } from "@/components/layout/NgoSidebar";
 import { SidebarProvider, useSidebar } from "@/components/layout/SidebarContext";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useAppStore } from "@/lib/store";
 
 function NgoDashboardContent({ children }: { children: React.ReactNode }) {
   const { collapsed } = useSidebar();
   const router = useRouter();
   const currentUser = useAppStore((s) => s.currentUser);
-  const hydrated = useAppStore((s) => s._hydrated);
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    if (useAppStore.persist.hasHydrated()) {
+      setHydrated(true);
+    } else {
+      const unsub = useAppStore.persist.onFinishHydration(() => {
+        setHydrated(true);
+      });
+      return unsub;
+    }
+  }, []);
 
   useEffect(() => {
     if (!hydrated) return;

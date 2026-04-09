@@ -47,10 +47,10 @@ export default function Home() {
           </Link>
 
           <div className="hidden md:flex items-center gap-8">
-            <Link href="/grants" className="text-sm font-medium text-gray-600 hover:text-indigo-600 transition-colors dark:text-gray-400 dark:hover:text-indigo-400">
+            <Link href="/login" className="text-sm font-medium text-gray-600 hover:text-indigo-600 transition-colors dark:text-gray-400 dark:hover:text-indigo-400">
               Browse Grants
             </Link>
-            <Link href="/dashboard" className="text-sm font-medium text-gray-600 hover:text-indigo-600 transition-colors dark:text-gray-400 dark:hover:text-indigo-400">
+            <Link href="/login" className="text-sm font-medium text-gray-600 hover:text-indigo-600 transition-colors dark:text-gray-400 dark:hover:text-indigo-400">
               For Funders
             </Link>
             <a href="#how-it-works" className="text-sm font-medium text-gray-600 hover:text-indigo-600 transition-colors dark:text-gray-400 dark:hover:text-indigo-400">

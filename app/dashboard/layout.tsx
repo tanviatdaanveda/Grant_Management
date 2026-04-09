@@ -3,14 +3,26 @@
 import { useRouter } from "next/navigation";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { SidebarProvider, useSidebar } from "@/components/layout/SidebarContext";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useAppStore } from "@/lib/store";
 
 function DashboardContent({ children }: { children: React.ReactNode }) {
   const { collapsed } = useSidebar();
   const router = useRouter();
   const currentUser = useAppStore((s) => s.currentUser);
-  const hydrated = useAppStore((s) => s._hydrated);
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    // Check if already hydrated
+    if (useAppStore.persist.hasHydrated()) {
+      setHydrated(true);
+    } else {
+      const unsub = useAppStore.persist.onFinishHydration(() => {
+        setHydrated(true);
+      });
+      return unsub;
+    }
+  }, []);
 
   useEffect(() => {
     if (!hydrated) return;

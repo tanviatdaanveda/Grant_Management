@@ -36,12 +36,12 @@ export function HeroSection() {
           </p>
 
           <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Link href="/grants">
+            <Link href="/login">
               <Button size="lg" className="text-base px-8">
                 Browse Grants <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </Link>
-            <Link href="/dashboard/grants/new">
+            <Link href="/login">
               <Button variant="outline" size="lg" className="text-base px-8">
                 <Play className="mr-2 h-4 w-4" /> List a Grant
               </Button>

@@ -28,7 +28,6 @@ export type { DbNotification as Notification };
 interface AppState {
   currentUser: AppUser | null;
   notifications: DbNotification[];
-  _hydrated: boolean;
 
   // Actions
   setCurrentUser: (user: AppUser) => void;
@@ -44,7 +43,6 @@ export const useAppStore = create<AppState>()(
     (set, get) => ({
       currentUser: null,
       notifications: [],
-      _hydrated: false,
 
       setCurrentUser: (user) => set({ currentUser: user }),
 
@@ -86,9 +84,6 @@ export const useAppStore = create<AppState>()(
     {
       name: "dv_app_store",
       partialize: (state) => ({ currentUser: state.currentUser }),
-      onRehydrateStorage: () => () => {
-        useAppStore.setState({ _hydrated: true });
-      },
     }
   )
 );
