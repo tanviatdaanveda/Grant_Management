@@ -346,3 +346,123 @@ export async function aiPromptToFormFields(
   const { promptToFormFields } = await import("@/lib/ai");
   return promptToFormFields(userPrompt, grantFields);
 }
+
+// ─── Grant Fit Score ───
+
+export interface FitScoreData {
+  id: string;
+  totalScore: number;
+  geoScore: number;
+  focusScore: number;
+  eligScore: number;
+  impactScore: number;
+  docScore: number;
+  reasoning: string;
+  suggestions: string[];
+}
+
+export async function getFitScore(
+  userId: string,
+  grantId: string
+): Promise<FitScoreData | null> {
+  const row = await prisma.grantFitScore.findFirst({
+    where: { ngoId: userId, grantId },
+    orderBy: { createdAt: "desc" },
+  });
+  if (!row) return null;
+  return {
+    id: row.id,
+    totalScore: row.totalScore,
+    geoScore: row.geoScore,
+    focusScore: row.focusScore,
+    eligScore: row.eligScore,
+    impactScore: row.impactScore,
+    docScore: row.docScore,
+    reasoning: row.reasoning,
+    suggestions: JSON.parse(row.suggestions as string),
+  };
+}
+
+export async function getOrCalculateFitScore(
+  userId: string,
+  grantId: string
+): Promise<FitScoreData> {
+  // Check cache first
+  const cached = await getFitScore(userId, grantId);
+  if (cached) return cached;
+
+  // Build NGO profile from knowledge documents + user record
+  const [docs, user, grant] = await Promise.all([
+    prisma.knowledgeDocument.findMany({ where: { userId } }),
+    prisma.user.findUnique({ where: { id: userId } }),
+    prisma.grant.findUnique({ where: { id: grantId } }),
+  ]);
+
+  if (!grant) {
+    return { id: "", totalScore: 0, geoScore: 0, focusScore: 0, eligScore: 0, impactScore: 0, docScore: 0, reasoning: "Grant not found", suggestions: [] };
+  }
+
+  // Merge extracted data from all knowledge documents into a profile
+  const ngoProfile: Record<string, unknown> = {};
+  for (const doc of docs) {
+    try {
+      const data = JSON.parse(doc.extractedData as string);
+      Object.assign(ngoProfile, data);
+    } catch { /* skip bad JSON */ }
+  }
+  ngoProfile.name = user?.name || "";
+  ngoProfile.email = user?.email || "";
+  ngoProfile.documentsUploaded = docs.length;
+
+  // Call AI
+  const { calculateGrantFitScore } = await import("@/lib/ai");
+  const result = await calculateGrantFitScore(ngoProfile, {
+    title: grant.title,
+    description: grant.description,
+    focusAreas: JSON.parse(grant.focusAreas as string),
+    geography: grant.geography,
+    state: grant.state,
+    eligibilityCriteria: grant.eligibilityCriteria,
+    grantType: grant.grantType,
+    identifierType: grant.identifierType,
+    totalAmount: grant.totalAmount,
+  });
+
+  // Persist
+  const record = await prisma.grantFitScore.create({
+    data: {
+      ngoId: userId,
+      grantId,
+      totalScore: result.totalScore,
+      geoScore: result.breakdown.geoScore,
+      focusScore: result.breakdown.focusScore,
+      eligScore: result.breakdown.eligScore,
+      impactScore: result.breakdown.impactScore,
+      docScore: result.breakdown.docScore,
+      reasoning: result.reasoning,
+      suggestions: JSON.stringify(result.suggestions),
+    },
+  });
+
+  return {
+    id: record.id,
+    totalScore: result.totalScore,
+    geoScore: result.breakdown.geoScore,
+    focusScore: result.breakdown.focusScore,
+    eligScore: result.breakdown.eligScore,
+    impactScore: result.breakdown.impactScore,
+    docScore: result.breakdown.docScore,
+    reasoning: result.reasoning,
+    suggestions: result.suggestions,
+  };
+}
+
+export async function recalculateFitScore(
+  userId: string,
+  grantId: string
+): Promise<FitScoreData> {
+  // Delete old scores for this combo
+  await prisma.grantFitScore.deleteMany({ where: { ngoId: userId, grantId } });
+  // Recalculate
+  return getOrCalculateFitScore(userId, grantId);
+}

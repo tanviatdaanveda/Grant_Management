@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { Header } from "@/components/layout/Header";
 import { Card, CardContent } from "@/components/ui/card";
@@ -15,8 +15,10 @@ import {
   IndianRupee,
   ArrowRight,
   Filter,
+  Loader2,
 } from "lucide-react";
-import { getGrants } from "@/lib/actions";
+import { getGrants, getOrCalculateFitScore, type FitScoreData } from "@/lib/actions";
+import { useAppStore } from "@/lib/store";
 import { Grant, FocusArea } from "@/types";
 import { formatCurrency, formatDate } from "@/lib/utils";
 
@@ -36,6 +38,9 @@ export default function NgoBrowseGrantsPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [selectedFocus, setSelectedFocus] = useState<FocusArea | "All">("All");
+  const currentUser = useAppStore((s) => s.currentUser);
+  const [fitScores, setFitScores] = useState<Record<string, FitScoreData>>({});
+  const [loadingScores, setLoadingScores] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     getGrants().then((allGrants) => {
@@ -43,6 +48,26 @@ export default function NgoBrowseGrantsPage() {
       setLoading(false);
     });
   }, []);
+
+  // Calculate fit scores for visible grants
+  const loadFitScore = useCallback(async (grantId: string) => {
+    if (!currentUser || fitScores[grantId] || loadingScores[grantId]) return;
+    setLoadingScores((p) => ({ ...p, [grantId]: true }));
+    try {
+      const score = await getOrCalculateFitScore(currentUser.id, grantId);
+      setFitScores((p) => ({ ...p, [grantId]: score }));
+    } catch {
+      // Silently fail — badge just won't show
+    } finally {
+      setLoadingScores((p) => ({ ...p, [grantId]: false }));
+    }
+  }, [currentUser, fitScores, loadingScores]);
+
+  useEffect(() => {
+    if (!currentUser || loading) return;
+    // Load scores for first batch of grants
+    grants.slice(0, 10).forEach((g) => loadFitScore(g.id));
+  }, [grants, currentUser, loading, loadFitScore]);
 
   // Listen for header search events
   useEffect(() => {
@@ -131,7 +156,17 @@ export default function NgoBrowseGrantsPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {filtered.map((grant) => (
+            {filtered.map((grant) => {
+              const score = fitScores[grant.id];
+              const scoreLoading = loadingScores[grant.id];
+              const scoreColor = score
+                ? score.totalScore >= 75
+                  ? "bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800"
+                  : score.totalScore >= 50
+                  ? "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800"
+                  : "bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800"
+                : "";
+              return (
               <Card key={grant.id} className="hover:shadow-md transition-shadow">
                 <CardContent className="p-5">
                   <div className="flex items-start justify-between mb-3">
@@ -143,9 +178,20 @@ export default function NgoBrowseGrantsPage() {
                         {grant.funderName}
                       </p>
                     </div>
-                    <Badge variant="outline" className="ml-2 flex-shrink-0">
-                      {grant.grantType}
-                    </Badge>
+                    <div className="flex items-center gap-2 ml-2 flex-shrink-0">
+                      {scoreLoading ? (
+                        <span className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium text-gray-400 border-gray-200 dark:border-gray-700">
+                          <Loader2 className="h-2.5 w-2.5 animate-spin" /> Fit
+                        </span>
+                      ) : score ? (
+                        <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold ${scoreColor}`}>
+                          {Math.round(score.totalScore)} / 100
+                        </span>
+                      ) : null}
+                      <Badge variant="outline">
+                        {grant.grantType}
+                      </Badge>
+                    </div>
                   </div>
 
                   <p className="text-xs text-gray-600 dark:text-gray-300 line-clamp-2 mb-3">
@@ -181,7 +227,7 @@ export default function NgoBrowseGrantsPage() {
                   </div>
 
                   <div className="flex gap-2">
-                    <Link href={`/grants/${grant.id}`} className="flex-1">
+                    <Link href={`/ngo-dashboard/grants/${grant.id}`} className="flex-1">
                       <Button variant="outline" size="sm" className="w-full">
                         View Details
                       </Button>
@@ -194,7 +240,8 @@ export default function NgoBrowseGrantsPage() {
                   </div>
                 </CardContent>
               </Card>
-            ))}
+              );
+            })}
           </div>
         )}
       </main>
