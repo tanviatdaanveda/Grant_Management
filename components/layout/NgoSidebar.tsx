@@ -13,6 +13,7 @@ import {
   X,
   PanelLeftClose,
   PanelLeftOpen,
+  Brain,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
@@ -24,6 +25,7 @@ const navItems = [
   { href: "/ngo-dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/ngo-dashboard/applications", label: "My Applications", icon: FileText },
   { href: "/ngo-dashboard/grants", label: "Browse Grants", icon: Search },
+  { href: "/ngo-dashboard/knowledge-hub", label: "Knowledge Hub", icon: Brain },
   { href: "/ngo-dashboard/organization", label: "Organization", icon: Building2 },
   { href: "/settings", label: "Settings", icon: Settings },
 ];

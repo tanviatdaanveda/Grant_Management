@@ -19,8 +19,17 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Grant, Application, BudgetItem } from "@/types";
-import { getGrant, saveApplication, addActivity } from "@/lib/actions";
+import {
+  getGrant,
+  saveApplication,
+  addActivity,
+  getKnowledgeDocuments,
+  getApplicationMemory,
+  saveApplicationMemory,
+} from "@/lib/actions";
+import { aiPromptToFormFields } from "@/lib/actions";
 import { formatCurrency, formatDate, generateId } from "@/lib/utils";
+import { useAppStore } from "@/lib/store";
 import {
   ArrowLeft,
   Calendar,
@@ -30,6 +39,11 @@ import {
   Upload,
   CheckCircle2,
   Save,
+  Brain,
+  Sparkles,
+  History,
+  Loader2,
+  Wand2,
 } from "lucide-react";
 import Image from "next/image";
 
@@ -41,9 +55,12 @@ const mockProfile = {
   ngoEmail: "priya@hopeinitiative.org",
 };
 
+type FilledField = Record<string, "knowledge" | "ai" | "history">;
+
 export default function ApplyPage() {
   const params = useParams();
   const router = useRouter();
+  const currentUser = useAppStore((s) => s.currentUser);
   const [grant, setGrant] = useState<Grant | null>(null);
   const [projectTitle, setProjectTitle] = useState("");
   const [projectDescription, setProjectDescription] = useState("");
@@ -56,9 +73,106 @@ export default function ApplyPage() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [appId, setAppId] = useState("");
 
+  // Smart fill state
+  const [filledBy, setFilledBy] = useState<FilledField>({});
+  const [filling, setFilling] = useState<"knowledge" | "ai" | "history" | null>(null);
+  const [showPromptDialog, setShowPromptDialog] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState("");
+
   useEffect(() => {
     getGrant(params.id as string).then((g) => { if (g) setGrant(g); });
   }, [params.id]);
+
+  // ─── Smart Fill Helpers ───
+
+  const applyFields = (data: Record<string, string>, source: "knowledge" | "ai" | "history") => {
+    const newFilled: FilledField = { ...filledBy };
+    if (data.projectTitle) { setProjectTitle(data.projectTitle); newFilled.projectTitle = source; }
+    if (data.projectDescription) { setProjectDescription(data.projectDescription); newFilled.projectDescription = source; }
+    if (data.targetBeneficiaries) { setTargetBeneficiaries(Number(data.targetBeneficiaries)); newFilled.targetBeneficiaries = source; }
+    if (data.implementationTimeline) { setImplementationTimeline(data.implementationTimeline); newFilled.implementationTimeline = source; }
+    // Fill evaluation responses if AI returned matching keys
+    const newEval = { ...evalResponses };
+    for (const [k, v] of Object.entries(data)) {
+      if (k.startsWith("eval_") && v) {
+        const qId = k.replace("eval_", "");
+        newEval[qId] = v;
+        newFilled[k] = source;
+      }
+    }
+    setEvalResponses(newEval);
+    setFilledBy(newFilled);
+  };
+
+  const fillFromKnowledgeHub = async () => {
+    if (!currentUser) return;
+    setFilling("knowledge");
+    try {
+      const docs = await getKnowledgeDocuments(currentUser.id);
+      const merged: Record<string, string> = {};
+      for (const doc of docs) {
+        for (const [k, v] of Object.entries(doc.extractedData)) {
+          if (v && !merged[k]) merged[k] = v;
+        }
+      }
+      applyFields(merged, "knowledge");
+    } catch (err) {
+      console.error("Knowledge fill failed:", err);
+    } finally {
+      setFilling(null);
+    }
+  };
+
+  const fillFromAI = async () => {
+    if (!grant || !aiPrompt.trim()) return;
+    setFilling("ai");
+    setShowPromptDialog(false);
+    try {
+      const grantFields = [
+        "projectTitle",
+        "projectDescription",
+        "targetBeneficiaries",
+        "implementationTimeline",
+        ...(grant.evaluationQuestions || []).map((q) => `eval_${q.id}`),
+      ];
+      const result = await aiPromptToFormFields(aiPrompt, grantFields);
+      applyFields(result, "ai");
+    } catch (err) {
+      console.error("AI fill failed:", err);
+    } finally {
+      setFilling(null);
+      setAiPrompt("");
+    }
+  };
+
+  const fillFromHistory = async () => {
+    if (!currentUser) return;
+    setFilling("history");
+    try {
+      const memory = await getApplicationMemory(currentUser.id);
+      applyFields(memory, "history");
+    } catch (err) {
+      console.error("History fill failed:", err);
+    } finally {
+      setFilling(null);
+    }
+  };
+
+  const fieldBadge = (field: string) => {
+    const source = filledBy[field];
+    if (!source) return null;
+    const config = {
+      knowledge: { label: "Knowledge Hub", color: "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-400", icon: Brain },
+      ai: { label: "AI Generated", color: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400", icon: Sparkles },
+      history: { label: "From History", color: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400", icon: History },
+    }[source];
+    const Icon = config.icon;
+    return (
+      <Badge className={`ml-2 text-[10px] px-1.5 py-0 ${config.color}`}>
+        <Icon className="mr-0.5 h-2.5 w-2.5" /> {config.label}
+      </Badge>
+    );
+  };
 
   const totalBudget = budgetItems.reduce((sum, item) => sum + (item.amount || 0), 0);
   const budgetValid = !grant || totalBudget <= grant.maxAmount;
@@ -120,6 +234,19 @@ export default function ApplyPage() {
       message: `New application from ${mockProfile.ngoName} for ${grant.title}`,
       timestamp: new Date().toISOString(),
     });
+
+    // Save field values to application memory for future Smart Fill
+    if (currentUser) {
+      const memory: Record<string, string> = {};
+      if (projectTitle) memory.projectTitle = projectTitle;
+      if (projectDescription) memory.projectDescription = projectDescription;
+      if (targetBeneficiaries) memory.targetBeneficiaries = String(targetBeneficiaries);
+      if (implementationTimeline) memory.implementationTimeline = implementationTimeline;
+      for (const [k, v] of Object.entries(evalResponses)) {
+        if (v) memory[`eval_${k}`] = v;
+      }
+      await saveApplicationMemory(currentUser.id, memory).catch(() => {});
+    }
 
     setAppId(newAppId);
     setShowConfirm(true);
@@ -184,6 +311,53 @@ export default function ApplyPage() {
 
           {/* Application Form */}
           <main className="flex-1 space-y-6 pb-24">
+            {/* Smart Fill Toolbar */}
+            <Card className="border-dashed border-purple-200 bg-purple-50/50 dark:border-purple-800 dark:bg-purple-950/20">
+              <CardContent className="p-4">
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex items-center gap-2 mr-2">
+                    <Wand2 className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Smart Fill</span>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-xs border-purple-200 hover:bg-purple-100 dark:border-purple-800 dark:hover:bg-purple-900/40"
+                    onClick={fillFromKnowledgeHub}
+                    disabled={filling !== null}
+                  >
+                    {filling === "knowledge" ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Brain className="mr-1 h-3 w-3" />}
+                    Knowledge Hub
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-xs border-blue-200 hover:bg-blue-100 dark:border-blue-800 dark:hover:bg-blue-900/40"
+                    onClick={() => setShowPromptDialog(true)}
+                    disabled={filling !== null}
+                  >
+                    {filling === "ai" ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Sparkles className="mr-1 h-3 w-3" />}
+                    AI Prompt
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-xs border-amber-200 hover:bg-amber-100 dark:border-amber-800 dark:hover:bg-amber-900/40"
+                    onClick={fillFromHistory}
+                    disabled={filling !== null}
+                  >
+                    {filling === "history" ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <History className="mr-1 h-3 w-3" />}
+                    Past Applications
+                  </Button>
+                </div>
+                {filling && (
+                  <p className="mt-2 text-xs text-purple-600 dark:text-purple-400 flex items-center gap-1">
+                    <Loader2 className="h-3 w-3 animate-spin" /> Filling fields...
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+
             {/* Section 1: Organization */}
             <Card>
               <CardHeader>
@@ -216,7 +390,10 @@ export default function ApplyPage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
-                  <Label htmlFor="projTitle">Project Title *</Label>
+                  <div className="flex items-center">
+                    <Label htmlFor="projTitle">Project Title *</Label>
+                    {fieldBadge("projectTitle")}
+                  </div>
                   <Input
                     id="projTitle"
                     value={projectTitle}
@@ -226,7 +403,10 @@ export default function ApplyPage() {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="projDesc">Project Description *</Label>
+                  <div className="flex items-center">
+                    <Label htmlFor="projDesc">Project Description *</Label>
+                    {fieldBadge("projectDescription")}
+                  </div>
                   <Textarea
                     id="projDesc"
                     value={projectDescription}
@@ -238,7 +418,10 @@ export default function ApplyPage() {
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
-                    <Label htmlFor="beneficiaries">Target Beneficiaries</Label>
+                    <div className="flex items-center">
+                      <Label htmlFor="beneficiaries">Target Beneficiaries</Label>
+                      {fieldBadge("targetBeneficiaries")}
+                    </div>
                     <Input
                       id="beneficiaries"
                       type="number"
@@ -248,7 +431,10 @@ export default function ApplyPage() {
                     />
                   </div>
                   <div>
-                    <Label htmlFor="timeline">Implementation Timeline</Label>
+                    <div className="flex items-center">
+                      <Label htmlFor="timeline">Implementation Timeline</Label>
+                      {fieldBadge("implementationTimeline")}
+                    </div>
                     <Input
                       id="timeline"
                       value={implementationTimeline}
@@ -324,7 +510,10 @@ export default function ApplyPage() {
                 <CardContent className="space-y-4">
                   {grant.evaluationQuestions.map((q) => (
                     <div key={q.id}>
-                      <Label className="text-sm">{q.question}</Label>
+                      <div className="flex items-center">
+                        <Label className="text-sm">{q.question}</Label>
+                        {fieldBadge(`eval_${q.id}`)}
+                      </div>
                       <p className="text-xs text-gray-400 mb-1">
                         {q.responseType} · Max Score: {q.maxScore} · Weightage: {q.weightage}%
                       </p>
@@ -384,6 +573,33 @@ export default function ApplyPage() {
           </div>
         </div>
       </div>
+
+      {/* AI Prompt Dialog */}
+      <Dialog open={showPromptDialog} onOpenChange={setShowPromptDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-blue-600" />
+              AI Prompt Fill
+            </DialogTitle>
+            <DialogDescription>
+              Describe your project idea and AI will generate form content tailored to this grant.
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            value={aiPrompt}
+            onChange={(e) => setAiPrompt(e.target.value)}
+            placeholder="e.g., We want to run a digital literacy program for 500 rural school children in Karnataka over 12 months, focusing on basic computer skills and internet safety..."
+            rows={5}
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowPromptDialog(false)}>Cancel</Button>
+            <Button onClick={fillFromAI} disabled={!aiPrompt.trim()}>
+              <Sparkles className="mr-1 h-4 w-4" /> Generate
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Confirmation Dialog */}
       <Dialog open={showConfirm} onOpenChange={setShowConfirm}>

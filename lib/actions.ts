@@ -245,3 +245,104 @@ export async function saveWizardState(state: string): Promise<void> {
 export async function clearWizardState(): Promise<void> {
   await prisma.wizardState.delete({ where: { id: "default" } }).catch(() => {});
 }
+
+// ─── Knowledge Documents ───
+
+export interface KnowledgeDoc {
+  id: string;
+  userId: string;
+  fileName: string;
+  fileType: string;
+  fileUrl: string;
+  extractedData: Record<string, string>;
+  uploadedAt: string;
+}
+
+export async function getKnowledgeDocuments(userId: string): Promise<KnowledgeDoc[]> {
+  const rows = await prisma.knowledgeDocument.findMany({
+    where: { userId },
+    orderBy: { uploadedAt: "desc" },
+  });
+  return rows.map((r) => ({
+    id: r.id,
+    userId: r.userId,
+    fileName: r.fileName,
+    fileType: r.fileType,
+    fileUrl: r.fileUrl,
+    extractedData: JSON.parse(r.extractedData as string || "{}"),
+    uploadedAt: r.uploadedAt.toISOString(),
+  }));
+}
+
+export async function uploadKnowledgeDocument(
+  userId: string,
+  fileName: string,
+  fileType: string,
+  fileUrl: string
+): Promise<string> {
+  const doc = await prisma.knowledgeDocument.create({
+    data: { userId, fileName, fileType, fileUrl, extractedData: "{}" },
+  });
+  return doc.id;
+}
+
+export async function updateKnowledgeDocExtractedData(
+  docId: string,
+  extractedData: Record<string, string>
+): Promise<void> {
+  await prisma.knowledgeDocument.update({
+    where: { id: docId },
+    data: { extractedData: JSON.stringify(extractedData) },
+  });
+}
+
+export async function deleteKnowledgeDocument(docId: string): Promise<void> {
+  await prisma.knowledgeDocument.delete({ where: { id: docId } }).catch(() => {});
+}
+
+// ─── Application Memory ───
+
+export async function getApplicationMemory(
+  userId: string
+): Promise<Record<string, string>> {
+  const rows = await prisma.applicationMemory.findMany({ where: { userId } });
+  const map: Record<string, string> = {};
+  for (const r of rows) {
+    map[r.fieldKey] = r.fieldValue;
+  }
+  return map;
+}
+
+export async function saveApplicationMemory(
+  userId: string,
+  fields: Record<string, string>
+): Promise<void> {
+  const ops = Object.entries(fields)
+    .filter(([, v]) => v !== "" && v !== "0")
+    .map(([key, value]) =>
+      prisma.applicationMemory.upsert({
+        where: { userId_fieldKey: { userId, fieldKey: key } },
+        update: { fieldValue: value },
+        create: { userId, fieldKey: key, fieldValue: value },
+      })
+    );
+  await Promise.all(ops);
+}
+
+// ─── AI Wrappers (server-side only) ───
+
+export async function aiExtractDocumentData(
+  fileText: string,
+  fileType: string
+): Promise<Record<string, string>> {
+  const { extractDocumentData } = await import("@/lib/ai");
+  return extractDocumentData(fileText, fileType);
+}
+
+export async function aiPromptToFormFields(
+  userPrompt: string,
+  grantFields: string[]
+): Promise<Record<string, string>> {
+  const { promptToFormFields } = await import("@/lib/ai");
+  return promptToFormFields(userPrompt, grantFields);
+}
